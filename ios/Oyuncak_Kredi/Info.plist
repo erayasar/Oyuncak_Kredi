@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Oyuncak fotoğrafı eklemek için galerinize erişim izni gerekiyor</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Oyuncak fotoğrafı çekmek için kamera izni gerekiyor</string>
 </dict>
 </plist>
