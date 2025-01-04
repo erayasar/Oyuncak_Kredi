@@ -11,15 +11,15 @@ import {
     Image,
     SafeAreaView
 } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import api from '../services/api';
 
-const AgeGroups = {
-    '0-2': '🎈 Bebekler',
-    '3-5': '🧸 Okul Öncesi',
-    '6-8': '🚗 İlkokul',
-    '9-12': '🎮 Ortaokul',
-    '12+': '🎲 12+ Yaş'
-};
+const ageRanges = [
+    { label: '0-3 Yaş', value: '0-3' },
+    { label: '3-6 Yaş', value: '3-6' },
+    { label: '6-12 Yaş', value: '6-12' },
+    { label: '12+ Yaş', value: '12+' }
+];
 
 const AddToyScreen = ({ navigation }) => {
     const [name, setName] = useState('');
@@ -27,6 +27,37 @@ const AddToyScreen = ({ navigation }) => {
     const [description, setDescription] = useState('');
     const [category, setCategory] = useState('');
     const [ageRange, setAgeRange] = useState('');
+    const [imageUrl, setImageUrl] = useState('');
+    const [selectedImage, setSelectedImage] = useState(null);
+
+    const pickImage = async () => {
+        const options = {
+            mediaType: 'photo',
+            includeBase64: false,
+            maxHeight: 2000,
+            maxWidth: 2000,
+        };
+
+        try {
+            const response = await launchImageLibrary(options);
+            
+            if (response.didCancel) {
+                return;
+            }
+
+            if (response.errorCode) {
+                Alert.alert('Hata', 'Resim seçilirken bir hata oluştu');
+                return;
+            }
+
+            if (response.assets && response.assets[0]) {
+                setSelectedImage(response.assets[0]);
+                setImageUrl(response.assets[0].uri);
+            }
+        } catch (error) {
+            Alert.alert('Hata', 'Resim seçilirken bir hata oluştu');
+        }
+    };
 
     const handleSubmit = async () => {
         // Form validasyonu
@@ -56,12 +87,42 @@ const AddToyScreen = ({ navigation }) => {
         }
 
         try {
-            await api.addToy({
+            let finalImageUrl = 'https://raw.githubusercontent.com/Erayakg/OyuncakKrediResimler/main/default.jpg';
+
+            if (selectedImage) {
+                const formData = new FormData();
+                
+                // URI'den dosya adını çıkar
+                const fileName = selectedImage.uri.split('/').pop();
+                
+                // Dosya tipini belirle
+                const match = /\.(\w+)$/.exec(fileName);
+                const type = match ? `image/${match[1]}` : 'image/jpeg';
+                
+                formData.append('image', {
+                    uri: selectedImage.uri,
+                    type: type,
+                    name: fileName
+                });
+
+                try {
+                    console.log('Uploading image...');
+                    const uploadResponse = await api.uploadImage(formData);
+                    console.log('Upload response:', uploadResponse);
+                    finalImageUrl = uploadResponse.imageUrl;
+                } catch (error) {
+                    console.error('Resim yükleme hatası:', error);
+                    Alert.alert('Uyarı', 'Resim yüklenemedi, varsayılan resim kullanılacak');
+                }
+            }
+
+            const result = await api.addToy({
                 name: name.trim(),
                 price: parseFloat(price),
                 description: description.trim(),
                 category: category.trim(),
-                ageRange
+                ageRange,
+                imageUrl: finalImageUrl
             });
 
             Alert.alert(
@@ -71,25 +132,51 @@ const AddToyScreen = ({ navigation }) => {
                     {
                         text: 'Tamam',
                         onPress: () => {
-                            // Ana sayfaya dön ve listeyi yenile
-                            navigation.navigate('Home', { refresh: true });
+                            navigation.navigate('AnaSayfa', { 
+                                refresh: true,
+                                timestamp: new Date().getTime()
+                            });
                         }
                     }
                 ]
             );
         } catch (error) {
-            Alert.alert(
-                'Hata',
-                error.message || 'Oyuncak eklenirken bir hata oluştu'
-            );
+            Alert.alert('Hata', error.message || 'Oyuncak eklenirken bir hata oluştu');
         }
     };
 
     return (
         <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <TouchableOpacity 
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <Text style={styles.backButtonText}>←</Text>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Yeni Oyuncak Ekle</Text>
+                <View style={styles.headerRight} />
+            </View>
+
             <ScrollView>
                 <View style={styles.form}>
-                    <Text style={styles.title}>Yeni Oyuncak Ekle</Text>
+                    <TouchableOpacity 
+                        style={styles.imagePickerButton} 
+                        onPress={pickImage}
+                    >
+                        {imageUrl ? (
+                            <Image 
+                                source={{ uri: imageUrl }} 
+                                style={styles.previewImage}
+                            />
+                        ) : (
+                            <View style={styles.imagePlaceholder}>
+                                <Text style={styles.imagePlaceholderText}>
+                                    Fotoğraf Ekle
+                                </Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
 
                     <TextInput
                         style={styles.input}
@@ -128,20 +215,20 @@ const AddToyScreen = ({ navigation }) => {
 
                     <Text style={styles.label}>Yaş Aralığı</Text>
                     <View style={styles.ageRangeContainer}>
-                        {Object.entries(AgeGroups).map(([age, label]) => (
+                        {ageRanges.map((range) => (
                             <TouchableOpacity
-                                key={age}
+                                key={range.value}
                                 style={[
                                     styles.ageButton,
-                                    ageRange === age && styles.selectedAgeButton
+                                    ageRange === range.value && styles.selectedAgeButton
                                 ]}
-                                onPress={() => setAgeRange(age)}
+                                onPress={() => setAgeRange(range.value)}
                             >
                                 <Text style={[
                                     styles.ageButtonText,
-                                    ageRange === age && styles.selectedAgeButtonText
+                                    ageRange === range.value && styles.selectedAgeButtonText
                                 ]}>
-                                    {label}
+                                    {range.label}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -164,15 +251,33 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F5F5F5',
     },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 15,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEEEEE',
+    },
+    backButton: {
+        padding: 5,
+    },
+    backButtonText: {
+        fontSize: 24,
+        color: '#FF6B6B',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333333',
+    },
+    headerRight: {
+        width: 30, // Dengelemek için boş alan
+    },
     form: {
         padding: 20,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 20,
-        textAlign: 'center',
     },
     input: {
         backgroundColor: '#FFF',
@@ -182,6 +287,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#DDD',
         fontSize: 16,
+        color: '#333',
     },
     textArea: {
         height: 100,
@@ -205,9 +311,12 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: '#F0F0F0',
         margin: 5,
+        borderWidth: 1,
+        borderColor: '#DDD',
     },
     selectedAgeButton: {
         backgroundColor: '#FF6B6B',
+        borderColor: '#FF6B6B',
     },
     ageButtonText: {
         color: '#333',
@@ -218,7 +327,7 @@ const styles = StyleSheet.create({
         color: '#FFF',
     },
     submitButton: {
-        backgroundColor: '#4CAF50',
+        backgroundColor: '#FF6B6B',
         padding: 15,
         borderRadius: 10,
         alignItems: 'center',
@@ -236,6 +345,31 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 18,
         fontWeight: '600',
+    },
+    imagePickerButton: {
+        width: '100%',
+        height: 200,
+        backgroundColor: '#f0f0f0',
+        borderRadius: 10,
+        marginBottom: 15,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#ddd',
+    },
+    previewImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    imagePlaceholder: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imagePlaceholderText: {
+        fontSize: 16,
+        color: '#666',
+        fontWeight: '500',
     },
 });
 

@@ -8,30 +8,38 @@ import {
     TouchableOpacity,
     Image,
     ScrollView,
+    RefreshControl,
     SafeAreaView,
-    RefreshControl
+    Platform,
+    StatusBar,
+    Alert
 } from 'react-native';
 import api from '../services/api';
 
-const AgeGroups = {
-    '0-2': '🎈 Bebekler',
-    '3-5': '🧸 Okul Öncesi',
-    '6-8': '🚗 İlkokul',
-    '9-12': '🎮 Ortaokul',
-    '12+': '🎲 12+ Yaş'
-};
-
 const HomeScreen = ({ navigation }) => {
     const [toys, setToys] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedAgeRange, setSelectedAgeRange] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [selectedAgeGroup, setSelectedAgeGroup] = useState(null);
+
+    // Yaş aralıkları
+    const ageRanges = [
+        { label: 'Tümü', value: null },
+        { label: '0-3 Yaş', value: '0-3' },
+        { label: '3-6 Yaş', value: '3-6' },
+        { label: '6-12 Yaş', value: '6-12' },
+        { label: '12+ Yaş', value: '12+' }
+    ];
 
     const loadToys = async () => {
         try {
+            setLoading(true);
             const response = await api.getToys();
             setToys(response);
         } catch (error) {
             console.error('Oyuncaklar yüklenirken hata:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -39,173 +47,222 @@ const HomeScreen = ({ navigation }) => {
         loadToys();
     }, []);
 
-    const onRefresh = async () => {
+    const onRefresh = React.useCallback(() => {
         setRefreshing(true);
-        await loadToys();
-        setRefreshing(false);
-    };
+        loadToys().then(() => setRefreshing(false));
+    }, []);
 
-    const filterToysByAge = (toys, ageGroup) => {
-        if (!ageGroup) return toys;
-        return toys.filter(toy => toy.ageRange === ageGroup);
-    };
+    const filteredToys = selectedAgeRange
+        ? toys.filter(toy => {
+            const toyAge = toy.ageRange;
+            switch(selectedAgeRange) {
+                case '0-3':
+                    return toyAge === '0-3' || toyAge === '0+';
+                case '3-6':
+                    return toyAge === '3-6';
+                case '6-12':
+                    return toyAge === '6-12' || toyAge === '8+' || toyAge === '6+';
+                case '12+':
+                    return toyAge === '12+';
+                default:
+                    return true;
+            }
+        })
+        : toys;
 
-    const renderToyCard = ({ item }) => (
+    useEffect(() => {
+        console.log('Seçili yaş aralığı:', selectedAgeRange);
+        console.log('Filtrelenmiş oyuncaklar:', filteredToys);
+    }, [selectedAgeRange, toys]);
+
+    const renderToyItem = ({ item }) => (
         <TouchableOpacity 
             style={styles.toyCard}
             onPress={() => navigation.navigate('ToyDetail', { toy: item })}
         >
-            <Image
-                source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+            <Image 
+                source={{ uri: item.imageUrl }} 
                 style={styles.toyImage}
                 resizeMode="cover"
             />
             <View style={styles.toyInfo}>
                 <Text style={styles.toyName}>{item.name}</Text>
                 <Text style={styles.toyPrice}>{item.price} TL</Text>
-                <Text style={styles.toyCategory}>{item.category}</Text>
+                <Text style={styles.toyAge}>Yaş: {item.ageRange}</Text>
             </View>
         </TouchableOpacity>
     );
 
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Oyuncak Dünyası</Text>
-                <View style={styles.headerButtons}>
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.container}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Oyuncak Dünyası</Text>
                     <TouchableOpacity 
-                        style={styles.addButton}
-                        onPress={() => navigation.navigate('AddToy')}
+                        style={styles.settingsButton}
+                        onPress={() => {
+                            Alert.alert(
+                                "Ayarlar",
+                                "Seçenekler",
+                                [
+                                    {
+                                        text: "Karanlık Mod",
+                                        onPress: () => Alert.alert("Bilgi", "Karanlık mod yakında eklenecek")
+                                    },
+                                    {
+                                        text: "Dil Seçimi",
+                                        onPress: () => Alert.alert("Bilgi", "Dil seçenekleri yakında eklenecek")
+                                    },
+                                    {
+                                        text: "Bildirimler",
+                                        onPress: () => Alert.alert("Bilgi", "Bildirim ayarları yakında eklenecek")
+                                    },
+                                    {
+                                        text: "Kapat",
+                                        style: "cancel"
+                                    }
+                                ]
+                            );
+                        }}
                     >
-                        <Text style={styles.buttonText}>+ Oyuncak Ekle</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={styles.profileButton}
-                        onPress={() => navigation.navigate('UserProfile')}
-                    >
-                        <Text style={styles.buttonText}>👤 Profilim</Text>
+                        <Text style={styles.buttonText}>⚙️ Ayarlar</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
 
-            <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={styles.ageGroupsContainer}
-            >
-                <TouchableOpacity 
-                    style={[
-                        styles.ageGroupButton,
-                        !selectedAgeGroup && styles.selectedAgeGroup
-                    ]}
-                    onPress={() => setSelectedAgeGroup(null)}
-                >
-                    <Text style={styles.ageGroupText}>Tümü</Text>
-                </TouchableOpacity>
-                {Object.entries(AgeGroups).map(([age, label]) => (
-                    <TouchableOpacity 
-                        key={age}
-                        style={[
-                            styles.ageGroupButton,
-                            selectedAgeGroup === age && styles.selectedAgeGroup
-                        ]}
-                        onPress={() => setSelectedAgeGroup(age)}
+                {/* Yaş Filtreleri */}
+                <View style={styles.filterContainer}>
+                    <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.filterScroll}
                     >
-                        <Text style={styles.ageGroupText}>{label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+                        {ageRanges.map((range) => (
+                            <TouchableOpacity
+                                key={range.label}
+                                style={[
+                                    styles.filterButton,
+                                    selectedAgeRange === range.value && styles.filterButtonActive
+                                ]}
+                                onPress={() => setSelectedAgeRange(range.value)}
+                            >
+                                <Text style={[
+                                    styles.filterButtonText,
+                                    selectedAgeRange === range.value && styles.filterButtonTextActive
+                                ]}>
+                                    {range.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
 
-            <FlatList
-                data={filterToysByAge(toys, selectedAgeGroup)}
-                renderItem={renderToyCard}
-                keyExtractor={item => item.id.toString()}
-                numColumns={2}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-                contentContainerStyle={styles.toyList}
-            />
+                {/* Oyuncak Listesi */}
+                <FlatList
+                    data={filteredToys}
+                    renderItem={renderToyItem}
+                    keyExtractor={item => item.id.toString()}
+                    numColumns={2}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                        />
+                    }
+                    contentContainerStyle={styles.listContainer}
+                />
+            </View>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#fff',
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0
+    },
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#f5f5f5',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 15,
-        backgroundColor: '#FFF',
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    settingsButton: {
+        backgroundColor: '#FF6B6B',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
         shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: 3,
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    headerButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    addButton: {
-        backgroundColor: '#4CAF50',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-        marginRight: 10,
-    },
-    profileButton: {
-        backgroundColor: '#FF6B6B',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
     buttonText: {
-        color: '#FFF',
-        fontWeight: '600',
+        color: '#fff',
         fontSize: 14,
+        fontWeight: '600',
     },
-    ageGroupsContainer: {
-        backgroundColor: '#FFF',
+    filterContainer: {
+        backgroundColor: '#fff',
         paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
     },
-    ageGroupButton: {
+    filterScroll: {
+        paddingHorizontal: 10,
+    },
+    filterButton: {
         paddingHorizontal: 20,
-        paddingVertical: 10,
+        paddingVertical: 8,
         marginHorizontal: 5,
         borderRadius: 20,
-        backgroundColor: '#F0F0F0',
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#ddd',
     },
-    selectedAgeGroup: {
+    filterButtonActive: {
         backgroundColor: '#FF6B6B',
+        borderColor: '#FF6B6B',
     },
-    ageGroupText: {
-        color: '#333',
-        fontWeight: '600',
+    filterButtonText: {
+        color: '#666',
+        fontSize: 14,
+        fontWeight: '500',
     },
-    toyList: {
+    filterButtonTextActive: {
+        color: '#fff',
+    },
+    listContainer: {
         padding: 10,
     },
     toyCard: {
         flex: 1,
         margin: 5,
-        backgroundColor: '#FFF',
+        backgroundColor: '#fff',
         borderRadius: 10,
         overflow: 'hidden',
+        elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
-        elevation: 3,
     },
     toyImage: {
         width: '100%',
@@ -215,21 +272,20 @@ const styles = StyleSheet.create({
         padding: 10,
     },
     toyName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginBottom: 5,
     },
     toyPrice: {
         fontSize: 14,
-        color: '#4CAF50',
+        color: '#FF6B6B',
         fontWeight: '600',
-        marginTop: 5,
     },
-    toyCategory: {
+    toyAge: {
         fontSize: 12,
         color: '#666',
-        marginTop: 3,
-    },
+        marginTop: 5,
+    }
 });
 
 export default HomeScreen;

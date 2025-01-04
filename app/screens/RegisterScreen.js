@@ -6,11 +6,10 @@ import {
     StyleSheet,
     TouchableOpacity,
     Text,
-    ImageBackground,
+    ScrollView,
+    Alert,
     KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    Alert
+    Platform
 } from 'react-native';
 import api from '../services/api';
 
@@ -18,116 +17,110 @@ const RegisterScreen = ({ navigation }) => {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-
-    const validateForm = () => {
-        if (!username || username.length < 3) {
-            Alert.alert('Hata', 'Kullanıcı adı en az 3 karakter olmalıdır!');
-            return false;
-        }
-
-        if (!email || !email.includes('@') || !email.includes('.')) {
-            Alert.alert('Hata', 'Geçerli bir email adresi giriniz!');
-            return false;
-        }
-
-        if (!password || password.length < 6) {
-            Alert.alert('Hata', 'Şifre en az 6 karakter olmalıdır!');
-            return false;
-        }
-
-        if (password !== confirmPassword) {
-            Alert.alert('Hata', 'Şifreler eşleşmiyor!');
-            return false;
-        }
-
-        return true;
-    };
+    const [fullName, setFullName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [address, setAddress] = useState('');
 
     const handleRegister = async () => {
-        if (!validateForm()) {
-            return;
-        }
-
         try {
-            const response = await api.register({ username, email, password });
+            if (!username || !email || !password || !fullName || !phone || !address) {
+                Alert.alert('Hata', 'Lütfen tüm alanları doldurun');
+                return;
+            }
+
+            console.log('Gönderilecek kayıt bilgileri:', {
+                username,
+                email,
+                password,
+                fullName,
+                phone,
+                address
+            });
+
+            const response = await api.register({
+                username,
+                email,
+                password,
+                fullName,
+                phone,
+                address
+            });
+
+            console.log('Kayıt yanıtı:', response);
+
             Alert.alert(
-                'Başarılı', 
-                'Kayıt işlemi tamamlandı!', 
+                'Başarılı',
+                'Kayıt işlemi başarıyla tamamlandı',
                 [{ text: 'Tamam', onPress: () => navigation.navigate('Login') }]
             );
         } catch (error) {
-            if (error.message === 'Email already exists') {
-                Alert.alert('Hata', 'Bu email adresi zaten kullanımda!');
-            } else {
-                Alert.alert('Hata', error.message || 'Kayıt işlemi başarısız!');
-            }
+            console.error('Kayıt hatası:', error);
+            Alert.alert('Hata', error.message || 'Kayıt işlemi başarısız');
         }
     };
 
     return (
-        <ImageBackground
-            source={require('../../assets/arkaplan.jpg')}
-            style={styles.background}
-            blurRadius={3}
+        <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.container}
         >
-            <StatusBar barStyle="light-content" />
-            <KeyboardAvoidingView 
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={styles.container}
-            >
+            <ScrollView contentContainerStyle={styles.scrollContainer}>
                 <View style={styles.formContainer}>
-                    <Text style={styles.title}>Yeni Hesap Oluştur</Text>
+                    <Text style={styles.title}>Kayıt Ol</Text>
 
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Kullanıcı Adı"
-                            placeholderTextColor="#666"
-                            value={username}
-                            onChangeText={setUsername}
-                            autoCapitalize="none"
-                        />
-                    </View>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Kullanıcı Adı"
+                        value={username}
+                        onChangeText={setUsername}
+                        autoCapitalize="none"
+                    />
 
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="E-posta"
-                            placeholderTextColor="#666"
-                            value={email}
-                            onChangeText={setEmail}
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                        />
-                    </View>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="E-posta"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                    />
 
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Şifre"
-                            placeholderTextColor="#666"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                        />
-                    </View>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Şifre"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry
+                    />
 
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Şifre Tekrar"
-                            placeholderTextColor="#666"
-                            value={confirmPassword}
-                            onChangeText={setConfirmPassword}
-                            secureTextEntry
-                        />
-                    </View>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Ad Soyad"
+                        value={fullName}
+                        onChangeText={setFullName}
+                    />
+
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Telefon"
+                        value={phone}
+                        onChangeText={setPhone}
+                        keyboardType="phone-pad"
+                    />
+
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Adres"
+                        value={address}
+                        onChangeText={setAddress}
+                        multiline
+                        numberOfLines={3}
+                        textAlignVertical="top"
+                    />
 
                     <TouchableOpacity 
                         style={styles.registerButton}
                         onPress={handleRegister}
-                        activeOpacity={0.8}
                     >
                         <Text style={styles.registerButtonText}>Kayıt Ol</Text>
                     </TouchableOpacity>
@@ -136,76 +129,57 @@ const RegisterScreen = ({ navigation }) => {
                         style={styles.loginButton}
                         onPress={() => navigation.navigate('Login')}
                     >
-                        <Text style={styles.loginText}>Zaten hesabın var mı? Giriş yap</Text>
+                        <Text style={styles.loginButtonText}>Zaten hesabın var mı? Giriş yap</Text>
                     </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView>
-        </ImageBackground>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 };
 
 const styles = StyleSheet.create({
-    background: {
-        flex: 1,
-        width: '100%',
-        height: '100%',
-    },
     container: {
         flex: 1,
+        backgroundColor: '#F5F5F5',
+    },
+    scrollContainer: {
+        flexGrow: 1,
         justifyContent: 'center',
-        alignItems: 'center',
         padding: 20,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    formContainer: {
+        backgroundColor: '#FFF',
+        padding: 20,
+        borderRadius: 10,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#333',
-        marginBottom: 30,
+        marginBottom: 20,
         textAlign: 'center',
     },
-    formContainer: {
-        width: '100%',
-        maxWidth: 400,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        padding: 20,
-        borderRadius: 15,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    inputContainer: {
-        backgroundColor: '#FFF',
-        borderRadius: 10,
-        marginBottom: 15,
-        paddingHorizontal: 15,
-        borderWidth: 1,
-        borderColor: '#DDD',
-    },
     input: {
-        height: 50,
-        color: '#333',
+        backgroundColor: '#F5F5F5',
+        padding: 15,
+        borderRadius: 5,
+        marginBottom: 15,
         fontSize: 16,
     },
     registerButton: {
         backgroundColor: '#4CAF50',
         padding: 15,
-        borderRadius: 10,
+        borderRadius: 5,
         alignItems: 'center',
         marginTop: 10,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
     },
     registerButtonText: {
         color: '#FFF',
@@ -216,12 +190,11 @@ const styles = StyleSheet.create({
         marginTop: 15,
         padding: 10,
     },
-    loginText: {
+    loginButtonText: {
         color: '#4CAF50',
         fontSize: 16,
         textAlign: 'center',
-        fontWeight: '600',
-    }
+    },
 });
 
 export default RegisterScreen;

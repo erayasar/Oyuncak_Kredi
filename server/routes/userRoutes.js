@@ -1,49 +1,79 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const mysql = require('mysql2/promise');
+const authenticateToken = require('../middleware/auth');
 require('dotenv').config();
-
-// Veritabanı bağlantı havuzu
-const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
 
 // Login route
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        const [users] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
+        console.log('Login isteği geldi:', { email, password });
 
+        // Önce email kontrolü
+        const [users] = await req.db.execute(
+            'SELECT id, username, email, password, fullName, phone, address, points FROM users WHERE email = ?', 
+            [email]
+        );
+        
         if (users.length === 0) {
-            return res.status(401).json({ message: 'Geçersiz email veya şifre' });
+            console.log('Email bulunamadı:', email);
+            return res.status(401).json({ 
+                message: 'Bu email adresi ile kayıtlı kullanıcı bulunamadı',
+                error: 'EMAIL_NOT_FOUND'
+            });
         }
 
         const user = users[0];
-        const validPassword = await bcrypt.compare(password, user.password);
-
-        if (!validPassword) {
-            return res.status(401).json({ message: 'Geçersiz email veya şifre' });
+        console.log('Veritabanından gelen kullanıcı:', {
+            ...user,
+            password: '***'
+        });
+        
+        // Şifre kontrolü
+        if (password !== user.password) {
+            console.log('Şifre yanlış');
+            return res.status(401).json({ 
+                message: 'Şifre yanlış',
+                error: 'INVALID_PASSWORD'
+            });
         }
 
+        console.log('Giriş başarılı, token oluşturuluyor...');
         const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
-        res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
+        
+        console.log('Token oluşturuldu, yanıt gönderiliyor...');
+        res.json({ 
+            token, 
+            user: { 
+                id: user.id, 
+                username: user.username, 
+                email: user.email,
+                fullName: user.fullName,
+                phone: user.phone,
+                address: user.address,
+                points: user.points
+            } 
+        });
     } catch (error) {
+        console.error('Login hatası:', error);
         res.status(500).json({ message: error.message });
     }
 });
 
 // Register route
 router.post('/register', async (req, res) => {
+    const pool = req.db;
     try {
-        const { username, email, password } = req.body;
+        const { username, email, password, fullName, phone, address } = req.body;
+        console.log('Gelen kayıt bilgileri:', { 
+            username, 
+            email, 
+            password: '***', 
+            fullName, 
+            phone, 
+            address 
+        });
 
         // Validasyonlar
         if (!username || username.length < 3) {
@@ -58,6 +88,10 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'Şifre en az 6 karakter olmalıdır!' });
         }
 
+        if (!fullName || !phone || !address) {
+            return res.status(400).json({ message: 'Lütfen tüm kişisel bilgileri doldurun!' });
+        }
+
         // Email kontrolü
         const [existingUsers] = await pool.execute(
             'SELECT * FROM users WHERE email = ?',
@@ -65,31 +99,48 @@ router.post('/register', async (req, res) => {
         );
 
         if (existingUsers.length > 0) {
-            return res.status(400).json({ message: 'Email already exists' });
+            return res.status(400).json({ message: 'Bu email adresi zaten kullanımda' });
         }
 
-        // Yeni kullanıcı oluşturma
+        // Kullanıcıyı kaydet
         const [result] = await pool.execute(
-            'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-            [username, email, password]
+            'INSERT INTO users (username, email, password, fullName, phone, address) VALUES (?, ?, ?, ?, ?, ?)',
+            [username, email, password, fullName, phone, address]
         );
 
-        const token = jwt.sign({ id: result.insertId }, process.env.JWT_SECRET);
-        res.status(201).json({ token });
+        // Yeni kullanıcı bilgilerini al
+        const [newUsers] = await pool.execute(
+            'SELECT id, username, email, fullName, phone, address, points FROM users WHERE id = ?',
+            [result.insertId]
+        );
+
+        const newUser = newUsers[0];
+        const token = jwt.sign({ id: newUser.id }, process.env.JWT_SECRET);
+
+        console.log('Kayıt başarılı. Kullanıcı:', newUser);
+
+        res.status(201).json({
+            token,
+            user: newUser
+        });
     } catch (error) {
         console.error('Kayıt hatası:', error);
-        res.status(400).json({ message: 'Kayıt işlemi başarısız!' });
+        res.status(400).json({ message: 'Kayıt işlemi başarısız: ' + error.message });
     }
 });
 
 // Kullanıcı profil bilgilerini getir
-router.get('/profile', async (req, res) => {
+router.get('/profile', authenticateToken, async (req, res) => {
     try {
-        const userId = req.user.id; // JWT'den gelen kullanıcı ID'si
-        const [users] = await pool.execute(
+        const userId = req.user.id;
+        console.log('Kullanıcı ID:', userId); // Debug için
+
+        const [users] = await req.db.execute(
             'SELECT id, username, email, fullName, phone, address, points FROM users WHERE id = ?',
             [userId]
         );
+        
+        console.log('Veritabanından gelen kullanıcı:', users[0]); // Debug için
 
         if (users.length === 0) {
             return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
@@ -97,20 +148,104 @@ router.get('/profile', async (req, res) => {
 
         res.json(users[0]);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Profil bilgileri getirme hatası:', error);
+        res.status(500).json({ message: 'Profil bilgileri alınırken bir hata oluştu' });
+    }
+});
+
+// Profil bilgilerini güncelle
+router.put('/profile', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { fullName, phone, address, currentPassword, newPassword } = req.body;
+
+        console.log('Gelen güncelleme verileri:', {
+            userId,
+            fullName,
+            phone,
+            address,
+            hasCurrentPassword: !!currentPassword,
+            hasNewPassword: !!newPassword
+        });
+
+        // Önce mevcut kullanıcı bilgilerini al
+        const [users] = await req.db.execute(
+            'SELECT * FROM users WHERE id = ?',
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
+        }
+
+        const currentUser = users[0];
+
+        // Şifre değişikliği isteği varsa
+        if (currentPassword && newPassword) {
+            // Mevcut şifre kontrolü
+            if (currentPassword !== currentUser.password) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Mevcut şifreniz yanlış'
+                });
+            }
+
+            // Şifreyi güncelle
+            await req.db.execute(
+                'UPDATE users SET password = ? WHERE id = ?',
+                [newPassword, userId]
+            );
+        }
+
+        // Profil bilgilerini güncelle (undefined değerleri mevcut değerlerle değiştir)
+        await req.db.execute(
+            'UPDATE users SET fullName = ?, phone = ?, address = ? WHERE id = ?',
+            [
+                fullName || currentUser.fullName,
+                phone || currentUser.phone,
+                address || currentUser.address,
+                userId
+            ]
+        );
+
+        // Güncellenmiş kullanıcı bilgilerini al
+        const [updatedUser] = await req.db.execute(
+            'SELECT id, username, email, fullName, phone, address FROM users WHERE id = ?',
+            [userId]
+        );
+
+        res.json({
+            status: 'success',
+            message: currentPassword && newPassword ? 
+                'Profil bilgileri ve şifre başarıyla güncellendi' : 
+                'Profil bilgileri başarıyla güncellendi',
+            user: updatedUser[0]
+        });
+
+    } catch (error) {
+        console.error('Profil güncelleme hatası:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Profil güncellenirken bir hata oluştu'
+        });
     }
 });
 
 // Kullanıcının eklediği oyuncakları getir
-router.get('/toys', async (req, res) => {
+router.get('/toys', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        const [toys] = await pool.execute(
+        console.log('Kullanıcı ID:', userId);
+        
+        const [toys] = await req.db.execute(
             'SELECT * FROM toys WHERE user_id = ? ORDER BY created_at DESC',
             [userId]
         );
+        
+        console.log('Kullanıcının oyuncakları:', toys);
         res.json(toys);
     } catch (error) {
+        console.error('Oyuncakları getirme hatası:', error);
         res.status(500).json({ message: error.message });
     }
 });

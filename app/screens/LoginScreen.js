@@ -13,6 +13,7 @@ import {
     StatusBar
 } from 'react-native';
 import api from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,10 +26,21 @@ const LoginScreen = ({ navigation }) => {
             console.log('Giriş denemesi:', { email, password });
             const response = await api.login(email, password);
             console.log('Sunucu yanıtı:', response);
-            navigation.replace('Home');
+            if (response.token) {
+                await AsyncStorage.setItem('userToken', response.token);
+                navigation.replace('Main');
+            }
         } catch (error) {
             console.error('Giriş hatası:', error);
-            Alert.alert('Hata', error.message || 'Giriş başarısız');
+            let errorMessage = 'Giriş başarısız';
+            
+            if (error.error === 'EMAIL_NOT_FOUND') {
+                errorMessage = 'Bu email adresi ile kayıtlı kullanıcı bulunamadı';
+            } else if (error.error === 'INVALID_PASSWORD') {
+                errorMessage = 'Şifre yanlış';
+            }
+            
+            Alert.alert('Hata', errorMessage);
         }
     };
 
