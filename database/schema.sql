@@ -25,13 +25,22 @@ CREATE TABLE toys (
     price DECIMAL(10,2) NOT NULL,
     description TEXT,
     imageUrl VARCHAR(255) NOT NULL DEFAULT 'https://raw.githubusercontent.com/Erayakg/OyuncakKrediResimler/main/default.jpg',
-    category VARCHAR(100) NOT NULL,
+    category INT,
     ageRange VARCHAR(50) NOT NULL,
     user_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (category) REFERENCES categories(id)
 );
+
+-- Oyuncaklar tablosu güncelleme
+ALTER TABLE toys 
+ADD COLUMN points INT NOT NULL DEFAULT 100,
+ADD COLUMN is_available TINYINT(1) NOT NULL DEFAULT 1;
+
+-- Mevcut oyuncakların puanlarını güncelle (örnek olarak fiyatın %10'u kadar)
+UPDATE toys SET points = CEIL(price * 0.1);
 
 -- Örnek kullanıcı ekleme
 INSERT INTO users (username, email, password, fullName, phone, address, points) 
@@ -54,3 +63,62 @@ INSERT INTO toys (name, price, description, category, ageRange, user_id, imageUr
 ('Puzzle 1000 Parça', 129.99, 'İstanbul manzaralı 1000 parça puzzle.', 'Puzzle', '12+', 1, 'https://example.com/puzzle.jpg'),
 
 ('Uzaktan Kumandalı Araba', 399.99, 'Off-road özellikli uzaktan kumandalı araba. Şarj edilebilir.', 'RC Oyuncak', '8+', 1, 'https://example.com/rc-car.jpg'); 
+
+-- Kiralama tablosu
+DROP TABLE IF EXISTS rentals;
+
+CREATE TABLE rentals (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    toy_id INT NOT NULL,
+    user_id INT NOT NULL,
+    start_date DATETIME NOT NULL,
+    end_date DATETIME NOT NULL,
+    rental_period ENUM('1', '2', '3') NOT NULL, -- 1: 1 ay, 2: 2 ay, 3: 3 ay
+    points_spent INT NOT NULL,
+    status ENUM('active', 'returned', 'cancelled') DEFAULT 'active',
+    delivery_address VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (toy_id) REFERENCES toys(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+); 
+
+-- Önce toys tablosundaki foreign key'i sil
+ALTER TABLE toys DROP FOREIGN KEY toys_ibfk_2;
+ALTER TABLE toys DROP FOREIGN KEY fk_category;
+ALTER TABLE toys DROP FOREIGN KEY toys_category_fk;
+
+-- Şimdi categories tablosunu silebiliriz
+DROP TABLE IF EXISTS categories;
+
+-- Kategoriler tablosunu oluştur
+CREATE TABLE categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Kategorileri ekle
+INSERT INTO categories (id, name) VALUES 
+(1, 'Peluş Oyuncaklar'),
+(2, 'Eğitici Oyuncaklar'),
+(3, 'Elektronik Oyuncaklar'),
+(4, 'LEGO & Yapı Oyuncakları'),
+(5, 'Bebek & Aksesuar'),
+(6, 'Araçlar & Arabalar'),
+(7, 'Kutu Oyunları'),
+(8, 'Dış Mekan Oyuncakları'),
+(9, 'Sanat & El İşi'),
+(10, 'Müzik Aletleri');
+
+-- Toys tablosundaki category alanını güncelle
+ALTER TABLE toys MODIFY COLUMN category INT;
+ALTER TABLE toys ADD CONSTRAINT toys_category_fk FOREIGN KEY (category) REFERENCES categories(id);
+
+-- Mevcut oyuncakların kategorilerini güncelle
+UPDATE toys SET category = 4 WHERE category LIKE '%LEGO%';
+UPDATE toys SET category = 5 WHERE category LIKE '%Bebek%';
+UPDATE toys SET category = 3 WHERE category LIKE '%Elektronik%';
+UPDATE toys SET category = 6 WHERE category LIKE '%Araçlar%';
+UPDATE toys SET category = 7 WHERE category LIKE '%Kutu%';
+UPDATE toys SET category = 1 WHERE category LIKE '%Peluş%'; 

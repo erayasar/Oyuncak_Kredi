@@ -6,79 +6,40 @@ import {
     TouchableOpacity,
     ScrollView,
     Image,
-    TextInput,
-    Alert,
-    FlatList,
     RefreshControl,
-    SafeAreaView
+    SafeAreaView,
+    Alert
 } from 'react-native';
 import api from '../services/api';
 
-const UserScreen = ({ navigation, route }) => {
+const UserScreen = ({ navigation }) => {
     const [userInfo, setUserInfo] = useState(null);
-    const [userToys, setUserToys] = useState([]);
+    const [myToys, setMyToys] = useState([]);
+    const [myRentals, setMyRentals] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editedInfo, setEditedInfo] = useState({
-        fullName: '',
-        phone: '',
-        address: '',
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-    });
-    const [showPasswordFields, setShowPasswordFields] = useState(false);
 
-    const loadUserData = async () => {
+    const loadData = async () => {
         try {
-            const userData = await api.getUserInfo();
+            const [userData, toysData, rentalsData] = await Promise.all([
+                api.getUserInfo(),
+                api.getMyToys(),
+                api.getMyRentals()
+            ]);
             setUserInfo(userData);
-            setEditedInfo({
-                fullName: userData.fullName || '',
-                phone: userData.phone || '',
-                address: userData.address || ''
-            });
+            setMyToys(toysData);
+            setMyRentals(rentalsData);
         } catch (error) {
-            console.error('Profil bilgileri yüklenirken hata:', error);
-        }
-    };
-
-    const loadUserToys = async () => {
-        try {
-            const toys = await api.getUserToys();
-            console.log('Yüklenen kullanıcı oyuncakları:', toys);
-            if (Array.isArray(toys)) {
-                setUserToys(toys);
-            } else {
-                console.error('Beklenmeyen veri formatı:', toys);
-                setUserToys([]);
-            }
-        } catch (error) {
-            console.error('Oyuncaklar yüklenirken hata:', error);
-            setUserToys([]);
+            console.error('Veri yükleme hatası:', error);
         }
     };
 
     useEffect(() => {
-        loadUserData();
-        loadUserToys();
+        loadData();
     }, []);
-
-    useEffect(() => {
-        if (route.params?.refresh) {
-            console.log('Yenileme isteği alındı, timestamp:', route.params.timestamp);
-            setTimeout(() => {
-                loadUserToys();
-                loadUserData();
-            }, 500);
-            navigation.setParams({ refresh: undefined });
-        }
-    }, [route.params?.refresh]);
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
-        Promise.all([loadUserData(), loadUserToys()])
-            .finally(() => setRefreshing(false));
+        loadData().finally(() => setRefreshing(false));
     }, []);
 
     const handleLogout = async () => {
@@ -93,255 +54,82 @@ const UserScreen = ({ navigation, route }) => {
         }
     };
 
-    const handleSave = async () => {
-        try {
-            // Sadece değiştirilmiş alanları gönder
-            const updateData = {};
-            
-            if (editedInfo.fullName !== userInfo.fullName) {
-                updateData.fullName = editedInfo.fullName;
-            }
-            if (editedInfo.phone !== userInfo.phone) {
-                updateData.phone = editedInfo.phone;
-            }
-            if (editedInfo.address !== userInfo.address) {
-                updateData.address = editedInfo.address;
-            }
-
-            // Şifre değişikliği varsa
-            if (showPasswordFields) {
-                if (!editedInfo.currentPassword) {
-                    Alert.alert('Hata', 'Mevcut şifrenizi giriniz');
-                    return;
-                }
-                if (!editedInfo.newPassword) {
-                    Alert.alert('Hata', 'Yeni şifrenizi giriniz');
-                    return;
-                }
-                if (editedInfo.newPassword !== editedInfo.confirmPassword) {
-                    Alert.alert('Hata', 'Yeni şifreler eşleşmiyor');
-                    return;
-                }
-                if (editedInfo.newPassword.length < 6) {
-                    Alert.alert('Hata', 'Yeni şifre en az 6 karakter olmalıdır');
-                    return;
-                }
-
-                updateData.currentPassword = editedInfo.currentPassword;
-                updateData.newPassword = editedInfo.newPassword;
-            }
-
-            // Eğer hiçbir değişiklik yoksa
-            if (Object.keys(updateData).length === 0) {
-                Alert.alert('Bilgi', 'Değişiklik yapılmadı');
-                setIsEditing(false);
-                setShowPasswordFields(false);
-                return;
-            }
-
-            const response = await api.updateUserInfo(updateData);
-
-            if (response.status === 'error') {
-                throw new Error(response.message);
-            }
-
-            // Form alanlarını temizle
-            setEditedInfo(prev => ({
-                ...prev,
-                currentPassword: '',
-                newPassword: '',
-                confirmPassword: ''
-            }));
-
-            setIsEditing(false);
-            setShowPasswordFields(false);
-            loadUserData();
-            Alert.alert('Başarılı', response.message);
-        } catch (error) {
-            Alert.alert('Hata', error.message || 'Profil güncellenirken bir hata oluştu');
-        }
-    };
-
-    const renderToyItem = ({ item }) => (
-        <TouchableOpacity 
-            style={styles.toyCard}
-            onPress={() => navigation.navigate('ToyDetail', { toy: item })}
-        >
-            <Image 
-                source={{ uri: item.imageUrl }} 
-                style={styles.toyImage}
-                resizeMode="cover"
-            />
+    const renderToyItem = (toy) => (
+        <View key={toy.id} style={styles.toyCard}>
+            <Image source={{ uri: toy.imageUrl }} style={styles.toyImage} />
             <View style={styles.toyInfo}>
-                <Text style={styles.toyName}>{item.name}</Text>
-                <Text style={styles.toyPrice}>{item.price} TL</Text>
-                <Text style={styles.toyAge}>Yaş: {item.ageRange}</Text>
+                <Text style={styles.toyName}>{toy.name}</Text>
+                <Text style={styles.toyPrice}>{toy.price} TL</Text>
+                <Text style={styles.toyPoints}>Puan: {toy.points}</Text>
+                <Text style={styles.toyStatus}>
+                    {toy.is_available ? 'Kiralanabilir' : 'Kirada'}
+                </Text>
             </View>
-        </TouchableOpacity>
+        </View>
+    );
+
+    const renderRentalItem = (rental) => (
+        <View key={rental.id} style={styles.rentalCard}>
+            <Image source={{ uri: rental.toy.imageUrl }} style={styles.toyImage} />
+            <View style={styles.rentalInfo}>
+                <Text style={styles.toyName}>{rental.toy.name}</Text>
+                <Text style={styles.rentalDate}>
+                    Başlangıç: {new Date(rental.start_date).toLocaleDateString()}
+                </Text>
+                <Text style={styles.rentalDate}>
+                    Bitiş: {new Date(rental.end_date).toLocaleDateString()}
+                </Text>
+                <Text style={[
+                    styles.status,
+                    rental.status === 'active' ? styles.activeStatus :
+                    rental.status === 'returned' ? styles.returnedStatus :
+                    styles.cancelledStatus
+                ]}>
+                    {rental.status === 'active' ? 'Aktif' :
+                     rental.status === 'returned' ? 'İade Edildi' :
+                     'İptal Edildi'}
+                </Text>
+            </View>
+        </View>
     );
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <Text style={styles.backButtonText}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Profilim</Text>
-                <View style={styles.headerRight} />
-            </View>
-
-            <ScrollView 
-                style={styles.container}
+            <ScrollView
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
             >
-                {/* Profil Kartı */}
-                <View style={styles.profileCard}>
-                    <View style={styles.avatarContainer}>
-                        <Text style={styles.avatarText}>
-                            {userInfo?.fullName?.charAt(0) || '?'}
-                        </Text>
+                {userInfo && (
+                    <View style={styles.profileSection}>
+                        <Text style={styles.userName}>{userInfo.fullName}</Text>
+                        <Text style={styles.userPoints}>Mevcut Puan: {userInfo.points}</Text>
                     </View>
-                    <Text style={styles.userName}>{userInfo?.fullName}</Text>
-                    <Text style={styles.userPoints}>{userInfo?.points || 0} Puan</Text>
-                </View>
+                )}
 
-                {/* Profil Bilgileri */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Kişisel Bilgiler</Text>
-                    {isEditing ? (
-                        <View style={styles.editForm}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Ad Soyad"
-                                value={editedInfo.fullName}
-                                onChangeText={(text) => setEditedInfo({...editedInfo, fullName: text})}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Telefon"
-                                value={editedInfo.phone}
-                                onChangeText={(text) => setEditedInfo({...editedInfo, phone: text})}
-                                keyboardType="phone-pad"
-                            />
-                            <TextInput
-                                style={[styles.input, styles.textArea]}
-                                placeholder="Adres"
-                                value={editedInfo.address}
-                                onChangeText={(text) => setEditedInfo({...editedInfo, address: text})}
-                                multiline
-                                numberOfLines={3}
-                            />
-                            
-                            {/* Şifre Değiştirme */}
-                            <TouchableOpacity 
-                                style={styles.passwordToggle}
-                                onPress={() => setShowPasswordFields(!showPasswordFields)}
-                            >
-                                <Text style={styles.passwordToggleText}>
-                                    {showPasswordFields ? '- Şifre değiştirmeyi iptal et' : '+ Şifre değiştir'}
-                                </Text>
-                            </TouchableOpacity>
-
-                            {showPasswordFields && (
-                                <View>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Mevcut Şifre"
-                                        value={editedInfo.currentPassword}
-                                        onChangeText={(text) => setEditedInfo({...editedInfo, currentPassword: text})}
-                                        secureTextEntry
-                                    />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Yeni Şifre"
-                                        value={editedInfo.newPassword}
-                                        onChangeText={(text) => setEditedInfo({...editedInfo, newPassword: text})}
-                                        secureTextEntry
-                                    />
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Yeni Şifre (Tekrar)"
-                                        value={editedInfo.confirmPassword}
-                                        onChangeText={(text) => setEditedInfo({...editedInfo, confirmPassword: text})}
-                                        secureTextEntry
-                                    />
-                                </View>
-                            )}
-
-                            <View style={styles.buttonContainer}>
-                                <TouchableOpacity 
-                                    style={[styles.button, styles.cancelButton]}
-                                    onPress={() => {
-                                        setIsEditing(false);
-                                        setShowPasswordFields(false);
-                                    }}
-                                >
-                                    <Text style={styles.buttonText}>İptal</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.button, styles.saveButton]}
-                                    onPress={handleSave}
-                                >
-                                    <Text style={styles.buttonText}>Kaydet</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={styles.infoContainer}>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Ad Soyad:</Text>
-                                <Text style={styles.infoValue}>{userInfo?.fullName}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Email:</Text>
-                                <Text style={styles.infoValue}>{userInfo?.email}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Telefon:</Text>
-                                <Text style={styles.infoValue}>{userInfo?.phone || '-'}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Adres:</Text>
-                                <Text style={styles.infoValue}>{userInfo?.address || '-'}</Text>
-                            </View>
-                            <TouchableOpacity 
-                                style={styles.editButton}
-                                onPress={() => setIsEditing(true)}
-                            >
-                                <Text style={styles.buttonText}>Düzenle</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                </View>
-
-                {/* Oyuncaklarım */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Oyuncaklarım</Text>
-                    <View style={styles.toyList}>
-                        {userToys.length > 0 ? (
-                            <FlatList
-                                data={userToys}
-                                renderItem={renderToyItem}
-                                keyExtractor={item => item.id.toString()}
-                                numColumns={2}
-                                scrollEnabled={false}
-                            />
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {myToys.length > 0 ? (
+                            myToys.map(renderToyItem)
                         ) : (
-                            <Text style={styles.emptyText}>Henüz oyuncak eklemediniz.</Text>
+                            <Text style={styles.emptyText}>Henüz oyuncağınız bulunmuyor.</Text>
                         )}
-                    </View>
+                    </ScrollView>
                 </View>
 
-                {/* Çıkış Yap */}
-                <TouchableOpacity 
-                    style={styles.logoutButton}
-                    onPress={handleLogout}
-                >
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Kiraladığım Oyuncaklar</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {myRentals.length > 0 ? (
+                            myRentals.map(renderRentalItem)
+                        ) : (
+                            <Text style={styles.emptyText}>Henüz kiralama işleminiz bulunmuyor.</Text>
+                        )}
+                    </ScrollView>
+                </View>
+
+                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                     <Text style={styles.logoutButtonText}>Çıkış Yap</Text>
                 </TouchableOpacity>
             </ScrollView>
@@ -354,227 +142,148 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F5F5F5',
     },
-    header: {
-        flexDirection: 'row',
+    profileSection: {
+        backgroundColor: '#FFF',
+        padding: 20,
         alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEEEEE',
+        marginBottom: 15,
     },
-    backButton: {
-        padding: 5,
-    },
-    backButtonText: {
+    userName: {
         fontSize: 24,
-        color: '#FF6B6B',
-    },
-    headerTitle: {
-        fontSize: 18,
         fontWeight: 'bold',
-        color: '#333333',
+        color: '#333',
+        marginBottom: 5,
     },
-    headerRight: {
-        width: 30, // Dengelemek için boş alan
+    userPoints: {
+        fontSize: 18,
+        color: '#FF6B6B',
+        fontWeight: '600',
     },
     section: {
-        backgroundColor: '#fff',
-        marginBottom: 10,
+        backgroundColor: '#FFF',
+        marginHorizontal: 15,
+        marginTop: 15,
+        borderRadius: 15,
         padding: 15,
     },
     sectionTitle: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
         color: '#333',
         marginBottom: 15,
     },
-    editForm: {
-        marginTop: 10,
-    },
-    input: {
-        backgroundColor: '#f9f9f9',
-        padding: 12,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        marginBottom: 12,
-        fontSize: 16,
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 15,
-    },
-    button: {
-        flex: 1,
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginHorizontal: 5,
-    },
-    saveButton: {
-        backgroundColor: '#FF6B6B',
-    },
-    cancelButton: {
-        backgroundColor: '#666',
-    },
-    editButton: {
-        backgroundColor: '#FF6B6B',
-        padding: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginTop: 15,
-    },
-    logoutButton: {
-        backgroundColor: '#FF6B6B',
-        padding: 15,
-        margin: 15,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    logoutButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    buttonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    infoContainer: {
-        backgroundColor: '#f9f9f9',
-        padding: 15,
-        borderRadius: 8,
-        marginTop: 10,
-    },
-    infoText: {
-        fontSize: 16,
-        color: '#333',
-        marginBottom: 10,
-    },
-    toyList: {
-        marginTop: 10,
-    },
-    sectionHeader: {
-        marginBottom: 15,
-    },
-    emptyText: {
-        textAlign: 'center',
-        marginTop: 20,
-        marginBottom: 20,
-        fontSize: 16,
-        color: '#666',
-    },
     toyCard: {
-        flex: 1,
-        margin: 5,
-        backgroundColor: '#fff',
+        backgroundColor: '#FFF',
+        margin: 10,
         borderRadius: 10,
         overflow: 'hidden',
-        elevation: 3,
+        width: 200,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        borderWidth: 1,
-        borderColor: '#eee',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    rentalCard: {
+        backgroundColor: '#FFF',
+        margin: 10,
+        borderRadius: 10,
+        overflow: 'hidden',
+        width: 200,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
     toyImage: {
         width: '100%',
-        height: 150,
-        backgroundColor: '#f0f0f0',
+        height: 120,
+        resizeMode: 'cover',
     },
     toyInfo: {
         padding: 10,
     },
+    rentalInfo: {
+        padding: 10,
+    },
     toyName: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 5,
     },
     toyPrice: {
         fontSize: 14,
         color: '#FF6B6B',
-        fontWeight: '600',
     },
-    toyAge: {
-        fontSize: 12,
+    toyPoints: {
+        fontSize: 14,
         color: '#666',
+    },
+    toyStatus: {
+        fontSize: 14,
+        fontWeight: '600',
         marginTop: 5,
     },
-    textArea: {
-        height: 100,
-        textAlignVertical: 'top',
+    rentalDate: {
+        fontSize: 14,
+        color: '#666',
     },
-    passwordToggle: {
-        padding: 10,
-        alignItems: 'center',
-        marginVertical: 10,
-    },
-    passwordToggleText: {
-        color: '#FF6B6B',
-        fontSize: 16,
+    status: {
+        fontSize: 14,
         fontWeight: '600',
+        marginTop: 5,
     },
-    profileCard: {
-        backgroundColor: '#FFFFFF',
-        padding: 20,
+    activeStatus: {
+        color: '#4CAF50',
+    },
+    returnedStatus: {
+        color: '#2196F3',
+    },
+    cancelledStatus: {
+        color: '#F44336',
+    },
+    menuItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 15,
-        borderRadius: 15,
+        backgroundColor: '#FFF',
+        padding: 15,
         marginHorizontal: 15,
         marginTop: 15,
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
+        borderRadius: 10,
     },
-    avatarContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: '#FF6B6B',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    avatarText: {
-        fontSize: 32,
-        color: '#FFFFFF',
-        fontWeight: 'bold',
-    },
-    userName: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#333333',
-        marginBottom: 5,
-    },
-    userPoints: {
+    menuItemText: {
         fontSize: 16,
-        color: '#FF6B6B',
+        color: '#333',
+    },
+    menuItemArrow: {
+        fontSize: 18,
+        color: '#666',
+    },
+    logoutButton: {
+        backgroundColor: '#FF6B6B',
+        margin: 15,
+        padding: 15,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    logoutButtonText: {
+        color: '#FFF',
+        fontSize: 16,
         fontWeight: '600',
     },
-    infoRow: {
-        flexDirection: 'row',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEEEEE',
-    },
-    infoLabel: {
-        flex: 1,
-        fontSize: 16,
-        color: '#666666',
-        fontWeight: '500',
-    },
-    infoValue: {
-        flex: 2,
-        fontSize: 16,
-        color: '#333333',
-    },
+    emptyText: {
+        textAlign: 'center',
+        padding: 20,
+        color: '#666',
+    }
 });
 
 export default UserScreen; 

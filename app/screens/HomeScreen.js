@@ -70,25 +70,27 @@ const HomeScreen = ({ navigation }) => {
         })
         : toys;
 
-    useEffect(() => {
-        console.log('Seçili yaş aralığı:', selectedAgeRange);
-        console.log('Filtrelenmiş oyuncaklar:', filteredToys);
-    }, [selectedAgeRange, toys]);
-
-    const renderToyItem = ({ item }) => (
+    const ToyCard = ({ toy, onPress }) => (
         <TouchableOpacity 
-            style={styles.toyCard}
-            onPress={() => navigation.navigate('ToyDetail', { toy: item })}
+            style={[
+                styles.toyCard,
+                !toy.is_available && styles.unavailableToyCard
+            ]} 
+            onPress={onPress}
+            disabled={!toy.is_available}
         >
-            <Image 
-                source={{ uri: item.imageUrl }} 
-                style={styles.toyImage}
-                resizeMode="cover"
-            />
+            <Image source={{ uri: toy.imageUrl }} style={styles.toyImage} />
             <View style={styles.toyInfo}>
-                <Text style={styles.toyName}>{item.name}</Text>
-                <Text style={styles.toyPrice}>{item.price} TL</Text>
-                <Text style={styles.toyAge}>Yaş: {item.ageRange}</Text>
+                <Text style={styles.toyName}>{toy.name}</Text>
+                <View style={styles.priceAndPointsContainer}>
+                    <Text style={styles.toyPoints}>{toy.points} Puan</Text>
+                </View>
+                <Text style={styles.toyCategory}>{toy.category}</Text>
+                {!toy.is_available && (
+                    <View style={styles.unavailableBadge}>
+                        <Text style={styles.unavailableBadgeText}>Kiralık</Text>
+                    </View>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -160,16 +162,15 @@ const HomeScreen = ({ navigation }) => {
                 {/* Oyuncak Listesi */}
                 <FlatList
                     data={filteredToys}
-                    renderItem={renderToyItem}
+                    renderItem={({ item }) => (
+                        <ToyCard
+                            toy={item}
+                            onPress={() => navigation.navigate('ToyDetail', { toy: item })}
+                        />
+                    )}
                     keyExtractor={item => item.id.toString()}
                     numColumns={2}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                        />
-                    }
-                    contentContainerStyle={styles.listContainer}
+                    contentContainerStyle={styles.toyList}
                 />
             </View>
         </SafeAreaView>
@@ -275,17 +276,53 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: 'bold',
         marginBottom: 5,
+        color: '#333',
+    },
+    priceAndPointsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginVertical: 5,
     },
     toyPrice: {
-        fontSize: 14,
+        fontSize: 16,
         color: '#FF6B6B',
         fontWeight: '600',
     },
-    toyAge: {
+    toyPoints: {
+        fontSize: 14,
+        color: '#4CAF50',
+        fontWeight: '600',
+    },
+    notAvailable: {
+        color: '#FF0000',
+        fontSize: 12,
+        fontWeight: '600',
+        marginTop: 5,
+    },
+    toyCategory: {
         fontSize: 12,
         color: '#666',
         marginTop: 5,
-    }
+        fontWeight: '500',
+    },
+    unavailableToyCard: {
+        opacity: 0.7,
+    },
+    unavailableBadge: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        backgroundColor: '#FF6B6B',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    unavailableBadgeText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
 });
 
 export default HomeScreen;

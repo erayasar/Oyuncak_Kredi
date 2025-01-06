@@ -8,11 +8,12 @@ import AddToyScreen from '../screens/AddToyScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ToyDetailScreen from '../screens/ToyDetailScreen';
+import RentalsScreen from '../screens/RentalsScreen';
+import MyRentalsScreen from '../screens/MyRentalsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Ana tab navigasyonu
 function MainTabs() {
     return (
         <Tab.Navigator
@@ -65,24 +66,14 @@ const AppNavigator = () => {
         <Stack.Navigator
             screenOptions={{
                 headerShown: false,
-                cardStyle: { 
-                    backgroundColor: '#FFFFFF'
-                }
+                cardStyle: { backgroundColor: '#FFFFFF' }
             }}
         >
-            <Stack.Screen 
-                name="Login" 
-                component={LoginScreen} 
-            />
-            <Stack.Screen 
-                name="Register" 
-                component={RegisterScreen} 
-            />
-            <Stack.Screen 
-                name="Main" 
-                component={MainTabs} 
-            />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="ToyDetail" component={ToyDetailScreen} />
+            <Stack.Screen name="MyRentals" component={MyRentalsScreen} />
         </Stack.Navigator>
     );
 };

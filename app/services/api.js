@@ -102,25 +102,13 @@ const api = {
         }
     },
 
-    rentToy: async (toyId) => {
+    rentToy: async (toyId, rentalData) => {
         try {
-            const response = await fetch(`${API_URL}/toys/rent/${toyId}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${await getToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.message || 'Kiralama işlemi başarısız oldu');
-            }
-
-            return data;
+            const response = await axiosInstance.post(`/toys/rent/${toyId}`, rentalData);
+            return response.data;
         } catch (error) {
-            throw error;
+            console.error('Kiralama hatası:', error.response?.data || error);
+            throw new Error(error.response?.data?.message || 'Kiralama işlemi başarısız oldu');
         }
     },
 
@@ -159,6 +147,66 @@ const api = {
             return data;
         } catch (error) {
             console.error('Resim yükleme hatası:', error);
+            throw error;
+        }
+    },
+
+    getRentals: async () => {
+        try {
+            const response = await axiosInstance.get('/rentals');
+            return response.data;
+        } catch (error) {
+            console.error('Kiralama bilgileri getirme hatası:', error);
+            throw error;
+        }
+    },
+
+    getMyRentals: async () => {
+        try {
+            const response = await axiosInstance.get('/rentals/my');
+            return response.data;
+        } catch (error) {
+            console.error('Kiralama bilgileri getirme hatası:', error);
+            throw error;
+        }
+    },
+
+    returnToy: async (rentalId) => {
+        try {
+            const response = await axiosInstance.post(`/rentals/${rentalId}/return`);
+            return response.data;
+        } catch (error) {
+            console.error('Oyuncak iade hatası:', error);
+            throw error;
+        }
+    },
+
+    getMyToys: async () => {
+        try {
+            const response = await axiosInstance.get('/toys/my');
+            return response.data;
+        } catch (error) {
+            console.error('Oyuncakları getirme hatası:', error);
+            throw error;
+        }
+    },
+
+    deleteToy: async (toyId) => {
+        try {
+            const response = await axiosInstance.delete(`/toys/${toyId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Oyuncak silme hatası:', error);
+            throw error;
+        }
+    },
+
+    getCategories: async () => {
+        try {
+            const response = await axiosInstance.get('/toys/categories');
+            return response.data;
+        } catch (error) {
+            console.error('Kategorileri getirme hatası:', error);
             throw error;
         }
     }

@@ -8,6 +8,7 @@ const fs = require('fs');
 // Route dosyaları
 const userRoutes = require('./routes/userRoutes');
 const toyRoutes = require('./routes/toyRoutes');
+const rentalRoutes = require('./routes/rentalRoutes');
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/toys', toyRoutes);
+app.use('/api/rentals', rentalRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
