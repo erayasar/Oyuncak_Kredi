@@ -27,7 +27,7 @@
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
-		<false/>
+		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
@@ -48,8 +48,13 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Oyuncak fotoğrafı eklemek için galerinize erişim izni gerekiyor</string>
+	<string>Oyuncak fotoğrafı seçmek için galeri izni gerekiyor</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Oyuncak fotoğrafı çekmek için kamera izni gerekiyor</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Ionicons.ttf</string>
+		<string>MaterialIcons.ttf</string>
+	</array>
 </dict>
 </plist>

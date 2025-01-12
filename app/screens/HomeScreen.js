@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import api from '../services/api';
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = ({ navigation, route }) => {
     const [toys, setToys] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedAgeRange, setSelectedAgeRange] = useState(null);
@@ -43,10 +43,25 @@ const HomeScreen = ({ navigation }) => {
         }
     };
 
+    // Navigation event listener ekle
     useEffect(() => {
-        loadToys();
-    }, []);
+        const unsubscribe = navigation.addListener('focus', () => {
+            // Ekran her odaklandığında oyuncakları yeniden yükle
+            loadToys();
+        });
 
+        return unsubscribe;
+    }, [navigation]);
+
+    // Route params değişikliğini izle
+    useEffect(() => {
+        if (route.params?.refresh) {
+            loadToys();
+            navigation.setParams({ refresh: undefined });
+        }
+    }, [route.params?.refresh]);
+
+    // Pull to refresh fonksiyonu
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
         loadToys().then(() => setRefreshing(false));
@@ -85,7 +100,7 @@ const HomeScreen = ({ navigation }) => {
                 <View style={styles.priceAndPointsContainer}>
                     <Text style={styles.toyPoints}>{toy.points} Puan</Text>
                 </View>
-                <Text style={styles.toyCategory}>{toy.category}</Text>
+                <Text style={styles.toyCategory}>{toy.category_name}</Text>
                 {!toy.is_available && (
                     <View style={styles.unavailableBadge}>
                         <Text style={styles.unavailableBadgeText}>Kiralık</Text>
@@ -171,6 +186,22 @@ const HomeScreen = ({ navigation }) => {
                     keyExtractor={item => item.id.toString()}
                     numColumns={2}
                     contentContainerStyle={styles.toyList}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#FF6B6B']} // Android için
+                            tintColor="#FF6B6B" // iOS için
+                        />
+                    }
+                    onEndReachedThreshold={0.1}
+                    ListEmptyComponent={() => (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>
+                                Henüz oyuncak bulunmuyor
+                            </Text>
+                        </View>
+                    )}
                 />
             </View>
         </SafeAreaView>
@@ -322,6 +353,17 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 12,
         fontWeight: 'bold',
+    },
+    emptyContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
     },
 });
 

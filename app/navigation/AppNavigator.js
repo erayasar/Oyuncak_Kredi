@@ -10,6 +10,10 @@ import RegisterScreen from '../screens/RegisterScreen';
 import ToyDetailScreen from '../screens/ToyDetailScreen';
 import RentalsScreen from '../screens/RentalsScreen';
 import MyRentalsScreen from '../screens/MyRentalsScreen';
+import AccountSettingsScreen from '../screens/AccountSettingsScreen';
+import EditToyScreen from '../screens/EditToyScreen';
+import ProfileSettingsScreen from '../screens/ProfileSettingsScreen';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -31,8 +35,8 @@ function MainTabs() {
                 name="AnaSayfa" 
                 component={HomeScreen}
                 options={{
-                    tabBarIcon: ({ color }) => (
-                        <Text style={{fontSize: 24, color}}>🏠</Text>
+                    tabBarIcon: ({ color, size }) => (
+                        <Icon name="home-outline" size={size} color={color} />
                     ),
                     tabBarLabel: 'Ana Sayfa'
                 }}
@@ -41,8 +45,8 @@ function MainTabs() {
                 name="OyuncakEkle" 
                 component={AddToyScreen}
                 options={{
-                    tabBarIcon: ({ color }) => (
-                        <Text style={{fontSize: 24, color}}>➕</Text>
+                    tabBarIcon: ({ color, size }) => (
+                        <Icon name="add-circle-outline" size={size} color={color} />
                     ),
                     tabBarLabel: 'Oyuncak Ekle'
                 }}
@@ -51,8 +55,8 @@ function MainTabs() {
                 name="Profilim" 
                 component={UserScreen}
                 options={{
-                    tabBarIcon: ({ color }) => (
-                        <Text style={{fontSize: 24, color}}>👤</Text>
+                    tabBarIcon: ({ color, size }) => (
+                        <Icon name="person-outline" size={size} color={color} />
                     ),
                     tabBarLabel: 'Profilim'
                 }}
@@ -74,6 +78,32 @@ const AppNavigator = () => {
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="ToyDetail" component={ToyDetailScreen} />
             <Stack.Screen name="MyRentals" component={MyRentalsScreen} />
+            <Stack.Screen 
+                name="AccountSettings"
+                component={AccountSettingsScreen}
+                options={{
+                    headerShown: true,
+                    title: 'Hesap Ayarları',
+                    headerStyle: {
+                        backgroundColor: '#FF6B6B',
+                    },
+                    headerTintColor: '#fff',
+                }}
+            />
+            <Stack.Screen 
+                name="EditToy"
+                component={EditToyScreen}
+                options={{
+                    headerShown: false,
+                }}
+            />
+            <Stack.Screen 
+                name="ProfileSettings" 
+                component={ProfileSettingsScreen}
+                options={{ 
+                    headerShown: false,
+                }}
+            />
         </Stack.Navigator>
     );
 };

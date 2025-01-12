@@ -10,12 +10,13 @@ import {
     Dimensions,
     KeyboardAvoidingView,
     Platform,
-    StatusBar
+    StatusBar,
+    Alert
 } from 'react-native';
-import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
     const [email, setEmail] = useState('');

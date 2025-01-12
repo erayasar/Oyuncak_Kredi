@@ -3,14 +3,49 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = 'http://localhost:3000/api';
 
-// Axios instance oluştur
 const axiosInstance = axios.create({
-    baseURL: API_URL
+    baseURL: API_URL,
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    retry: 3,
+    retryDelay: 1000,
+    keepAlive: true,
+    maxSockets: 25,
+    maxFreeSockets: 10,
+    validateStatus: function (status) {
+        return status >= 200 && status < 300;
+    }
 });
 
-// Request interceptor ekle
+// Yeniden deneme mekanizması
+axiosInstance.interceptors.response.use(null, async (error) => {
+    const { config } = error;
+    if (!config || !config.retry) {
+        return Promise.reject(error);
+    }
+
+    config.retryCount = config.retryCount || 0;
+
+    if (config.retryCount >= config.retry) {
+        return Promise.reject(error);
+    }
+
+    config.retryCount += 1;
+    console.log(`Retry attempt ${config.retryCount} for ${config.url}`);
+
+    const backoffDelay = config.retryDelay * Math.pow(2, config.retryCount - 1);
+    await new Promise(resolve => setTimeout(resolve, backoffDelay));
+
+    return axiosInstance(config);
+});
+
+// Request interceptor - her istekte token ekle
 axiosInstance.interceptors.request.use(
     async (config) => {
+        config.metadata = { startTime: new Date() };
+        
         const token = await AsyncStorage.getItem('userToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
@@ -22,14 +57,43 @@ axiosInstance.interceptors.request.use(
     }
 );
 
+// Response interceptor - hata yönetimi
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const { config } = error;
+        
+        // Retry logic
+        if (!config || !config.retry) {
+            return Promise.reject(error);
+        }
+
+        config.retryCount = config.retryCount || 0;
+
+        if (config.retryCount >= config.retry) {
+            return Promise.reject(error);
+        }
+
+        config.retryCount += 1;
+        console.log(`Retry attempt ${config.retryCount} for ${config.url}`);
+
+        // Exponential backoff
+        const backoffDelay = config.retryDelay * Math.pow(2, config.retryCount - 1);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+
+        return axiosInstance(config);
+    }
+);
+
 const api = {
     login: async (email, password) => {
         try {
+            console.log('Login isteği:', { email, password });
             const response = await axiosInstance.post('/users/login', {
                 email,
                 password
             });
-            // Token'ı kaydet
+            console.log('Login yanıtı:', response.data);
             await AsyncStorage.setItem('userToken', response.data.token);
             return response.data;
         } catch (error) {
@@ -40,12 +104,12 @@ const api = {
 
     getUserToys: async () => {
         try {
-            const response = await axiosInstance.get('/users/toys');
-            console.log('API yanıtı - Kullanıcı oyuncakları:', response.data);
+            const response = await axiosInstance.get('/toys/my');
+            console.log('Kullanıcı oyuncakları response:', response.data);
             return response.data;
         } catch (error) {
-            console.error('Oyuncakları getirme hatası:', error.response?.data || error);
-            throw error.response?.data || error;
+            console.error('Oyuncakları getirme hatası:', error.response?.data || error.message);
+            throw error;
         }
     },
 
@@ -184,6 +248,7 @@ const api = {
     getMyToys: async () => {
         try {
             const response = await axiosInstance.get('/toys/my');
+            console.log('Oyuncaklar başarıyla alındı:', response.data);
             return response.data;
         } catch (error) {
             console.error('Oyuncakları getirme hatası:', error);
@@ -204,9 +269,65 @@ const api = {
     getCategories: async () => {
         try {
             const response = await axiosInstance.get('/toys/categories');
+            console.log('Kategoriler başarıyla alındı:', response.data);
             return response.data;
         } catch (error) {
-            console.error('Kategorileri getirme hatası:', error);
+            console.error('Kategorileri getirme hatası:', error.response?.data || error.message);
+            throw error;
+        }
+    },
+
+    updateUserProfile: async (userData) => {
+        try {
+            const response = await fetch(`${API_URL}/users/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${await getToken()}`
+                },
+                body: JSON.stringify(userData)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Profil güncellenirken bir hata oluştu');
+            }
+
+            return data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    updateToy: async (toyId, toyData) => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${API_URL}/toys/${toyId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(toyData)
+            });
+
+            const text = await response.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('JSON parse error:', text);
+                throw new Error('Sunucu yanıtı geçersiz');
+            }
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Oyuncak güncellenirken bir hata oluştu');
+            }
+
+            return data;
+        } catch (error) {
+            console.error('Oyuncak güncelleme hatası:', error);
             throw error;
         }
     }

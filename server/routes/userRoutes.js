@@ -132,24 +132,20 @@ router.post('/register', async (req, res) => {
 // Kullanıcı profil bilgilerini getir
 router.get('/profile', authenticateToken, async (req, res) => {
     try {
-        const userId = req.user.id;
-        console.log('Kullanıcı ID:', userId); // Debug için
-
         const [users] = await req.db.execute(
             'SELECT id, username, email, fullName, phone, address, points FROM users WHERE id = ?',
-            [userId]
+            [req.user.id]
         );
-        
-        console.log('Veritabanından gelen kullanıcı:', users[0]); // Debug için
 
         if (users.length === 0) {
             return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
         }
 
+        console.log('Kullanıcı profili:', users[0]); // Debug log
         res.json(users[0]);
     } catch (error) {
-        console.error('Profil bilgileri getirme hatası:', error);
-        res.status(500).json({ message: 'Profil bilgileri alınırken bir hata oluştu' });
+        console.error('Profil getirme hatası:', error);
+        res.status(500).json({ message: 'Sunucu hatası' });
     }
 });
 

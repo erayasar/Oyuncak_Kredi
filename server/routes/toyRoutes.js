@@ -5,6 +5,59 @@ const path = require('path');
 const fs = require('fs');
 const authenticateToken = require('../middleware/auth');
 
+router.get('/categories', async (req, res) => {
+    try {
+        const [categories] = await req.db.execute('SELECT * FROM categories ORDER BY name ASC');
+        console.log('Kategoriler:', categories); // Debug log
+        return res.json(categories);
+    } catch (error) {
+        console.error('Kategorileri getirme hatası:', error);
+        return res.status(500).json({ message: 'Kategoriler alınırken hata oluştu' });
+    }
+});
+
+// Kullanıcının kendi oyuncaklarını getir
+router.get('/my', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        console.log('Kullanıcı ID:', userId); // Debug log
+
+        const [toys] = await req.db.execute(`
+            SELECT t.*, 
+                   c.name as category_name,
+                   u.username as owner_name, 
+                   u.phone as owner_phone
+            FROM toys t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN users u ON t.user_id = u.id
+            WHERE t.user_id = ?`,
+            [userId]
+        );
+
+        console.log('Bulunan oyuncaklar:', toys); // Debug log
+        return res.json(toys || []); // Boş array dön eğer oyuncak yoksa
+    } catch (error) {
+        console.error('Oyuncakları getirme hatası:', error);
+        return res.status(500).json({ message: 'Sunucu hatası' });
+    }
+});
+
+// Tüm oyuncakları getir
+router.get('/', async (req, res) => {
+    try {
+        const [toys] = await req.db.execute(`
+            SELECT t.*, c.name as category_name 
+            FROM toys t 
+            LEFT JOIN categories c ON t.category_id = c.id 
+            ORDER BY t.created_at DESC
+        `);
+        return res.json(toys);
+    } catch (error) {
+        console.error('Oyuncakları getirme hatası:', error);
+        return res.status(500).json({ message: error.message });
+    }
+});
+
 // Resim yükleme için multer konfigürasyonu
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -72,65 +125,74 @@ router.post('/upload', authenticateToken, upload.single('image'), async (req, re
 // Oyuncak ekleme endpoint'i
 router.post('/', authenticateToken, async (req, res) => {
     try {
-        const { name, price, description, category, ageRange, imageUrl, points } = req.body;
+        const { name, points, description, category_id, ageRange, imageUrl } = req.body;
         const userId = req.user.id;
 
-        console.log('Token kullanıcı bilgileri:', req.user);
-        console.log('Eklenen oyuncak bilgileri:', {
-            name,
-            price,
-            description,
-            category,
-            ageRange,
-            userId,
-            imageUrl,
-            points: points || Math.ceil(price * 0.1), // Eğer points belirtilmemişse fiyatın %10'unu al
-            is_available: 1
-        });
+        // Zorunlu alanları kontrol et
+        if (!name || !points || !category_id || !ageRange) {
+            return res.status(400).json({ message: 'Tüm zorunlu alanları doldurun' });
+        }
+
+        // Kategorinin var olduğunu kontrol et
+        const [categories] = await req.db.execute(
+            'SELECT * FROM categories WHERE id = ?',
+            [category_id]
+        );
+
+        if (categories.length === 0) {
+            return res.status(400).json({ message: 'Geçersiz kategori' });
+        }
 
         // Oyuncağı kaydet
         const [result] = await req.db.execute(
-            'INSERT INTO toys (name, price, description, category, ageRange, user_id, imageUrl, points, is_available) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO toys (name, points, description, category_id, ageRange, user_id, imageUrl, is_available) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
-                name, 
-                price, 
-                description, 
-                category, 
-                ageRange, 
-                userId, 
-                imageUrl, 
-                points || Math.ceil(price * 0.1),
+                name,
+                points,
+                description || null,
+                category_id,
+                ageRange,
+                userId,
+                imageUrl || 'https://raw.githubusercontent.com/Erayakg/OyuncakKrediResimler/main/default.jpg',
                 1
             ]
         );
 
-        // Yeni eklenen oyuncağı getir
-        const [newToy] = await req.db.execute(
-            'SELECT * FROM toys WHERE id = ?',
-            [result.insertId]
-        );
+        // Yeni eklenen oyuncağı kategori bilgisiyle birlikte getir
+        const [newToy] = await req.db.execute(`
+            SELECT t.*, c.name as category_name 
+            FROM toys t 
+            LEFT JOIN categories c ON t.category_id = c.id 
+            WHERE t.id = ?
+        `, [result.insertId]);
 
-        console.log('Yeni eklenen oyuncak:', newToy[0]);
-        res.status(201).json(newToy[0]);
+        res.status(201).json({
+            message: 'Oyuncak başarıyla eklendi',
+            toy: newToy[0]
+        });
     } catch (error) {
         console.error('Oyuncak ekleme hatası:', error);
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'Oyuncak eklenirken bir hata oluştu' });
     }
 });
 
-// Tüm oyuncakları getirme endpoint'i
-router.get('/', async (req, res) => {
+// Tek bir oyuncağı getirme endpoint'i
+router.get('/:id', async (req, res) => {
     try {
         const [toys] = await req.db.execute(`
             SELECT t.*, c.name as category_name 
             FROM toys t 
-            LEFT JOIN categories c ON t.category = c.id 
-            ORDER BY t.created_at DESC
-        `);
-        console.log('Gönderilen oyuncaklar:', toys);
-        res.json(toys);
+            LEFT JOIN categories c ON t.category_id = c.id 
+            WHERE t.id = ?
+        `, [req.params.id]);
+
+        if (toys.length === 0) {
+            return res.status(404).json({ message: 'Oyuncak bulunamadı' });
+        }
+
+        res.json(toys[0]);
     } catch (error) {
-        console.error('Oyuncakları getirme hatası:', error);
+        console.error('Oyuncak getirme hatası:', error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -271,20 +333,6 @@ router.post('/:rentalId/return', authenticateToken, async (req, res) => {
     }
 });
 
-// Kullanıcının kendi oyuncaklarını getir
-router.get('/my', authenticateToken, async (req, res) => {
-    try {
-        const [toys] = await req.db.execute(
-            'SELECT * FROM toys WHERE user_id = ? ORDER BY created_at DESC',
-            [req.user.id]
-        );
-        res.json(toys);
-    } catch (error) {
-        console.error('Oyuncakları getirme hatası:', error);
-        res.status(500).json({ message: 'Oyuncaklar alınırken bir hata oluştu' });
-    }
-});
-
 // Oyuncak silme endpoint'i
 router.delete('/:toyId', authenticateToken, async (req, res) => {
     try {
@@ -320,15 +368,96 @@ router.delete('/:toyId', authenticateToken, async (req, res) => {
     }
 });
 
-// Kategorileri getir
-router.get('/categories', async (req, res) => {
+// Oyuncak güncelleme endpoint'i
+router.put('/:id', authenticateToken, async (req, res) => {
     try {
-        const [categories] = await req.db.execute('SELECT * FROM categories ORDER BY name');
-        console.log('Gönderilen kategoriler:', categories); // Debug için
-        res.json(categories);
+        const toyId = req.params.id;
+        const userId = req.user.id;
+        const { name, points, description, category_id, ageRange, imageUrl } = req.body;
+
+        console.log('Güncelleme isteği:', {
+            toyId,
+            userId,
+            name,
+            points,
+            category_id,
+            ageRange,
+            imageUrl
+        });
+
+        // Oyuncağın mevcut olup olmadığını ve kullanıcıya ait olduğunu kontrol et
+        const [toys] = await req.db.execute(
+            'SELECT * FROM toys WHERE id = ? AND user_id = ?',
+            [toyId, userId]
+        );
+
+        if (toys.length === 0) {
+            return res.status(404).json({ message: 'Oyuncak bulunamadı veya size ait değil' });
+        }
+
+        // Oyuncağı güncelle
+        await req.db.execute(
+            `UPDATE toys 
+            SET name = ?, 
+                points = ?, 
+                description = ?, 
+                category_id = ?, 
+                ageRange = ?, 
+                imageUrl = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?`,
+            [name, points, description, category_id, ageRange, imageUrl, toyId, userId]
+        );
+
+        // Güncellenmiş oyuncağı getir
+        const [updatedToy] = await req.db.execute(`
+            SELECT t.*, c.name as category_name 
+            FROM toys t 
+            LEFT JOIN categories c ON t.category_id = c.id 
+            WHERE t.id = ?
+        `, [toyId]);
+
+        console.log('Güncellenen oyuncak:', updatedToy[0]);
+
+        res.json({
+            message: 'Oyuncak başarıyla güncellendi',
+            toy: updatedToy[0]
+        });
     } catch (error) {
-        console.error('Kategorileri getirme hatası:', error);
-        res.status(500).json({ message: 'Kategoriler alınırken bir hata oluştu' });
+        console.error('Oyuncak güncelleme hatası:', error);
+        res.status(500).json({ message: 'Oyuncak güncellenirken bir hata oluştu' });
+    }
+});
+
+// Kullanıcının kiralamalarını getir
+router.get('/rentals/my', authenticateToken, async (req, res) => {
+    try {
+        const [rentals] = await req.db.execute(`
+            SELECT 
+                r.*,
+                t.name as toy_name,
+                t.imageUrl as toy_imageUrl,
+                t.points as toy_points,
+                c.name as category_name,
+                t.ageRange as toy_ageRange
+            FROM rentals r
+            JOIN toys t ON r.toy_id = t.id
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE r.user_id = ?
+            ORDER BY r.created_at DESC
+        `, [req.user.id]);
+        
+        // Tarihleri düzgün format
+        const formattedRentals = rentals.map(rental => ({
+            ...rental,
+            start_date: new Date(rental.start_date).toLocaleDateString('tr-TR'),
+            end_date: new Date(rental.end_date).toLocaleDateString('tr-TR')
+        }));
+        
+        res.json(formattedRentals);
+    } catch (error) {
+        console.error('Kiralama bilgileri getirme hatası:', error);
+        res.status(500).json({ message: 'Kiralama bilgileri alınırken bir hata oluştu' });
     }
 });
 

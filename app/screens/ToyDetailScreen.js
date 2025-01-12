@@ -16,16 +16,19 @@ import api from '../services/api';
 const ToyDetailScreen = ({ route, navigation }) => {
     const { toy } = route.params;
     const [userInfo, setUserInfo] = useState(null);
+    const [isOwner, setIsOwner] = useState(false);
     const [rentalPeriod, setRentalPeriod] = useState('1');
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(false);
+    const [categoryName, setCategoryName] = useState('');
 
     useEffect(() => {
         const loadUserInfo = async () => {
             try {
                 const userData = await api.getUserInfo();
                 setUserInfo(userData);
+                setIsOwner(userData.id === toy.user_id);
                 if (userData.address) setDeliveryAddress(userData.address);
                 if (userData.phone) setPhone(userData.phone);
             } catch (error) {
@@ -34,7 +37,13 @@ const ToyDetailScreen = ({ route, navigation }) => {
         };
 
         loadUserInfo();
-    }, []);
+    }, [toy.user_id]);
+
+    useEffect(() => {
+        if (toy.category_name) {
+            setCategoryName(toy.category_name);
+        }
+    }, [toy]);
 
     const calculateRentalPoints = () => {
         return toy.points * parseInt(rentalPeriod);
@@ -81,6 +90,31 @@ const ToyDetailScreen = ({ route, navigation }) => {
         }
     };
 
+    const handleDelete = async () => {
+        Alert.alert(
+            'Oyuncak Sil',
+            'Bu oyuncağı silmek istediğinizden emin misiniz?',
+            [
+                { text: 'İptal', style: 'cancel' },
+                {
+                    text: 'Sil',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await api.deleteToy(toy.id);
+                            Alert.alert('Başarılı', 'Oyuncak başarıyla silindi');
+                            navigation.goBack();
+                            // HomeScreen'i güncelle
+                            navigation.getParent()?.setParams({ refresh: true });
+                        } catch (error) {
+                            Alert.alert('Hata', error.message || 'Oyuncak silinirken bir hata oluştu');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -114,8 +148,7 @@ const ToyDetailScreen = ({ route, navigation }) => {
                     <View style={styles.content}>
                         <Text style={styles.name}>{toy.name}</Text>
                         <View style={styles.priceAndPointsContainer}>
-                            <Text style={styles.price}>{toy.price}₺</Text>
-                            <Text style={styles.points}>Kiralama Puanı: {toy.points} P</Text>
+                            <Text style={styles.points}>Kiralama Puanı: {toy.points} </Text>
                         </View>
                         
                         {!toy.is_available && (
@@ -128,7 +161,7 @@ const ToyDetailScreen = ({ route, navigation }) => {
                         
                         <View style={styles.infoContainer}>
                             <Text style={styles.label}>Kategori:</Text>
-                            <Text style={styles.value}>{toy.category}</Text>
+                            <Text style={styles.value}>{categoryName}</Text>
                         </View>
                         
                         <View style={styles.infoContainer}>
@@ -141,76 +174,100 @@ const ToyDetailScreen = ({ route, navigation }) => {
                             <Text style={styles.description}>{toy.description}</Text>
                         </View>
 
-                        {toy.is_available && (
-                            <View style={styles.rentalSection}>
-                                <Text style={styles.sectionTitle}>Kiralama Süresi</Text>
-                                <View style={styles.periodSelector}>
-                                    {['1', '2', '3'].map((period) => (
-                                        <TouchableOpacity
-                                            key={period}
-                                            style={[
-                                                styles.periodButton,
-                                                rentalPeriod === period && styles.periodButtonActive
-                                            ]}
-                                            onPress={() => setRentalPeriod(period)}
-                                        >
-                                            <Text style={[
-                                                styles.periodButtonText,
-                                                rentalPeriod === period && styles.periodButtonTextActive
-                                            ]}>
-                                                {period} Ay
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                <View style={styles.pointsContainer}>
-                                    <Text style={styles.pointsText}>
-                                        Gereken Puan: {calculateRentalPoints()}
-                                    </Text>
-                                    {userInfo && userInfo.points < calculateRentalPoints() && (
-                                        <Text style={styles.insufficientPoints}>
-                                            Yetersiz Puan: {userInfo.points} mevcut
-                                        </Text>
-                                    )}
-                                </View>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Teslimat Adresi"
-                                    value={deliveryAddress}
-                                    onChangeText={setDeliveryAddress}
-                                    multiline
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Telefon Numarası"
-                                    value={phone}
-                                    onChangeText={setPhone}
-                                    keyboardType="phone-pad"
-                                />
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles.rentButton,
-                                        (loading || !toy.is_available) && styles.rentButtonDisabled
-                                    ]}
-                                    onPress={handleRent}
-                                    disabled={loading || !toy.is_available}
+                        {isOwner ? (
+                            <View style={styles.ownerActions}>
+                                <TouchableOpacity 
+                                    style={styles.editButton}
+                                    onPress={() => navigation.navigate('EditToy', { toy })}
                                 >
-                                    {loading ? (
-                                        <View style={styles.buttonContent}>
-                                            <ActivityIndicator color="#FFF" />
-                                            <Text style={[styles.rentButtonText, styles.loadingText]}>
-                                                Kiralama Yapılıyor...
-                                            </Text>
-                                        </View>
-                                    ) : (
-                                        <Text style={styles.rentButtonText}>Kirala</Text>
-                                    )}
+                                    <Text style={styles.editButtonText}>Düzenle</Text>
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity 
+                                    style={styles.deleteButton}
+                                    onPress={() => handleDelete()}
+                                >
+                                    <Text style={styles.deleteButtonText}>Sil</Text>
                                 </TouchableOpacity>
                             </View>
+                        ) : (
+                            !toy.is_available ? (
+                                <View style={styles.unavailableContainer}>
+                                    <Text style={styles.unavailableText}>
+                                        Bu oyuncak şu anda kiralanamaz durumda
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={styles.rentalSection}>
+                                    <Text style={styles.sectionTitle}>Kiralama Süresi</Text>
+                                    <View style={styles.periodSelector}>
+                                        {['1', '2', '3'].map((period) => (
+                                            <TouchableOpacity
+                                                key={period}
+                                                style={[
+                                                    styles.periodButton,
+                                                    rentalPeriod === period && styles.periodButtonActive
+                                                ]}
+                                                onPress={() => setRentalPeriod(period)}
+                                            >
+                                                <Text style={[
+                                                    styles.periodButtonText,
+                                                    rentalPeriod === period && styles.periodButtonTextActive
+                                                ]}>
+                                                    {period} Ay
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+
+                                    <View style={styles.pointsContainer}>
+                                        <Text style={styles.pointsText}>
+                                            Gereken Puan: {calculateRentalPoints()}
+                                        </Text>
+                                        {userInfo && userInfo.points < calculateRentalPoints() && (
+                                            <Text style={styles.insufficientPoints}>
+                                                Yetersiz Puan: {userInfo.points} mevcut
+                                            </Text>
+                                        )}
+                                    </View>
+
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Teslimat Adresi"
+                                        value={deliveryAddress}
+                                        onChangeText={setDeliveryAddress}
+                                        multiline
+                                    />
+
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Telefon Numarası"
+                                        value={phone}
+                                        onChangeText={setPhone}
+                                        keyboardType="phone-pad"
+                                    />
+
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.rentButton,
+                                            (loading || !toy.is_available) && styles.rentButtonDisabled
+                                        ]}
+                                        onPress={handleRent}
+                                        disabled={loading || !toy.is_available}
+                                    >
+                                        {loading ? (
+                                            <View style={styles.buttonContent}>
+                                                <ActivityIndicator color="#FFF" />
+                                                <Text style={[styles.rentButtonText, styles.loadingText]}>
+                                                    Kiralama Yapılıyor...
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={styles.rentButtonText}>Kirala</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            )
                         )}
                     </View>
                 </ScrollView>
@@ -431,6 +488,42 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    category: {
+        fontSize: 16,
+        color: '#666',
+        marginVertical: 5,
+    },
+    ownerActions: {
+        marginTop: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    editButton: {
+        flex: 1,
+        backgroundColor: '#4CAF50',
+        padding: 15,
+        borderRadius: 10,
+        marginRight: 10,
+    },
+    deleteButton: {
+        flex: 1,
+        backgroundColor: '#FF6B6B',
+        padding: 15,
+        borderRadius: 10,
+        marginLeft: 10,
+    },
+    editButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
+    deleteButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
     },
 });
 
