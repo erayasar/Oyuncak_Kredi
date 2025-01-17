@@ -1,9 +1,15 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 
-const ToyCard = ({ toy, onPress }) => {
+const ToyCard = ({ toy, onPress, userPoints }) => {
+    const canRent = userPoints >= toy.points;
+
     return (
-        <TouchableOpacity style={styles.card} onPress={onPress}>
+        <TouchableOpacity 
+            style={[styles.card, !canRent && styles.disabledCard]} 
+            onPress={onPress}
+            disabled={!canRent}
+        >
             <Image
                 source={{ uri: toy.imageUrl || 'https://raw.githubusercontent.com/Erayakg/OyuncakKrediResimler/main/default.jpg' }}
                 style={styles.image}
@@ -16,6 +22,11 @@ const ToyCard = ({ toy, onPress }) => {
                 <Text style={styles.status}>
                     Durum: {toy.is_available ? 'Müsait' : 'Kirada'}
                 </Text>
+                {!canRent && (
+                    <Text style={styles.insufficientPoints}>
+                        Yetersiz Puan! ({userPoints}/{toy.points})
+                    </Text>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -69,6 +80,15 @@ const styles = StyleSheet.create({
     status: {
         fontSize: 14,
         color: '#4CAF50',
+    },
+    disabledCard: {
+        opacity: 0.7,
+    },
+    insufficientPoints: {
+        color: '#FF4444',
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginTop: 5,
     }
 });
 

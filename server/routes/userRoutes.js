@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('../middleware/auth');
 require('dotenv').config();
+const bcrypt = require('bcrypt');
 
 // Login route
 router.post('/login', async (req, res) => {
@@ -243,6 +244,45 @@ router.get('/toys', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Oyuncakları getirme hatası:', error);
         res.status(500).json({ message: error.message });
+    }
+});
+
+// Şifre değiştirme endpoint'i
+router.post('/profile/change-password', authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user.id;
+
+        // Mevcut şifreyi kontrol et
+        const [users] = await req.db.execute(
+            'SELECT password FROM users WHERE id = ?',
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
+        }
+
+        const user = users[0];
+        
+        // Şimdilik plain text karşılaştırma yapıyoruz
+        if (currentPassword !== user.password) {
+            return res.status(400).json({ message: 'Mevcut şifre yanlış' });
+        }
+
+        // Şifreyi güncelle
+        await req.db.execute(
+            'UPDATE users SET password = ? WHERE id = ?',
+            [newPassword, userId]
+        );
+
+        res.json({ message: 'Şifre başarıyla güncellendi' });
+    } catch (error) {
+        console.error('Şifre değiştirme hatası:', error);
+        res.status(500).json({ 
+            message: 'Şifre değiştirme işlemi başarısız oldu',
+            error: error.message 
+        });
     }
 });
 

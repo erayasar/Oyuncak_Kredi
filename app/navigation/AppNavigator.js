@@ -8,12 +8,12 @@ import AddToyScreen from '../screens/AddToyScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ToyDetailScreen from '../screens/ToyDetailScreen';
-import RentalsScreen from '../screens/RentalsScreen';
-import MyRentalsScreen from '../screens/MyRentalsScreen';
 import AccountSettingsScreen from '../screens/AccountSettingsScreen';
 import EditToyScreen from '../screens/EditToyScreen';
 import ProfileSettingsScreen from '../screens/ProfileSettingsScreen';
 import Icon from 'react-native-vector-icons/Ionicons';
+import MyToysListScreen from '../screens/MyToysListScreen';
+import MyRentalsListScreen from '../screens/MyRentalsListScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -77,7 +77,7 @@ const AppNavigator = () => {
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="ToyDetail" component={ToyDetailScreen} />
-            <Stack.Screen name="MyRentals" component={MyRentalsScreen} />
+            <Stack.Screen name="MyRentals" component={MyRentalsListScreen} />
             <Stack.Screen 
                 name="AccountSettings"
                 component={AccountSettingsScreen}
@@ -104,6 +104,8 @@ const AppNavigator = () => {
                     headerShown: false,
                 }}
             />
+            <Stack.Screen name="MyToysList" component={MyToysListScreen} />
+            <Stack.Screen name="MyRentalsList" component={MyRentalsListScreen} />
         </Stack.Navigator>
     );
 };

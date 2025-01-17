@@ -6,80 +6,54 @@ import ToyCard from '../components/ToyCard';
 import { useFocusEffect } from '@react-navigation/native';
 
 const UserScreen = ({ navigation }) => {
-    const [toys, setToys] = useState([]);
-    const [rentals, setRentals] = useState([]);
     const [userInfo, setUserInfo] = useState(null);
-    const [activeTab, setActiveTab] = useState('toys');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchUserData = async () => {
+    const loadUserInfo = async () => {
         try {
-            const [toysResponse, rentalsResponse, userResponse] = await Promise.all([
-                api.getUserToys(),
-                api.getMyRentals(),
-                api.getUserInfo()
-            ]);
-            setToys(toysResponse || []);
-            setRentals(rentalsResponse || []);
-            setUserInfo(userResponse);
+            const response = await api.getUserInfo();
+            setUserInfo(response);
         } catch (error) {
-            console.error('Veri getirme hatası:', error);
+            console.error('Kullanıcı bilgileri yüklenirken hata:', error);
+            Alert.alert('Hata', 'Kullanıcı bilgileri yüklenemedi');
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     };
 
-    useFocusEffect(
-        React.useCallback(() => {
-            fetchUserData();
-        }, [])
-    );
+    useEffect(() => {
+        loadUserInfo();
+    }, []);
 
-    const onRefresh = () => {
+    const onRefresh = React.useCallback(() => {
         setRefreshing(true);
-        fetchUserData();
-    };
+        loadUserInfo().finally(() => setRefreshing(false));
+    }, []);
 
     const handleLogout = async () => {
-        Alert.alert(
-            "Çıkış Yap",
-            "Çıkış yapmak istediğinize emin misiniz?",
-            [
-                {
-                    text: "İptal",
-                    style: "cancel"
-                },
-                {
-                    text: "Çıkış Yap",
-                    onPress: async () => {
-                        try {
-                            await api.logout();
-                            navigation.reset({
-                                index: 0,
-                                routes: [{ name: 'Login' }],
-                            });
-                        } catch (error) {
-                            Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
-                        }
-                    }
-                }
-            ]
-        );
+        try {
+            await api.logout();
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+            });
+        } catch (error) {
+            Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
+        }
     };
 
     const renderHeader = () => (
         <View style={styles.header}>
             <View style={styles.headerTop}>
                 <View style={styles.userInfo}>
-                    <Icon name="person-circle" size={50} color="#FFF" />
+                    <Icon name="person-circle-outline" size={40} color="#FFF" />
                     <View style={styles.userInfoText}>
-                        <Text style={styles.headerTitle}>
-                            {userInfo?.username}
+                        <Text style={{ color: '#FFF', fontSize: 18, fontWeight: 'bold' }}>
+                            {userInfo?.fullName || 'Kullanıcı'}
                         </Text>
-                        <Text style={styles.pointsText}>
-                            <Icon name="star" size={16} color="#FFD700" /> {userInfo?.points || 0} Puan
+                        <Text style={{ color: '#FFF', fontSize: 14 }}>
+                            {userInfo?.points || 0} Puan
                         </Text>
                     </View>
                 </View>
@@ -98,92 +72,76 @@ const UserScreen = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
             </View>
-            <View style={styles.tabContainer}>
-                <TouchableOpacity 
-                    style={[styles.tab, activeTab === 'toys' && styles.activeTab]}
-                    onPress={() => setActiveTab('toys')}
-                >
-                    <Icon 
-                        name="cube-outline" 
-                        size={20} 
-                        color={activeTab === 'toys' ? '#FFF' : 'rgba(255,255,255,0.7)'} 
-                    />
-                    <Text style={[styles.tabText, activeTab === 'toys' && styles.activeTabText]}>
-                        Oyuncaklarım
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                    style={[styles.tab, activeTab === 'rentals' && styles.activeTab]}
-                    onPress={() => setActiveTab('rentals')}
-                >
-                    <Icon 
-                        name="swap-horizontal-outline" 
-                        size={20} 
-                        color={activeTab === 'rentals' ? '#FFF' : 'rgba(255,255,255,0.7)'} 
-                    />
-                    <Text style={[styles.tabText, activeTab === 'rentals' && styles.activeTabText]}>
-                        Kiraladıklarım
-                    </Text>
-                </TouchableOpacity>
-            </View>
         </View>
     );
 
-    const renderContent = () => {
-        if (loading) {
-            return (
-                <View style={styles.centerContainer}>
-                    <Text>Yükleniyor...</Text>
-                </View>
-            );
-        }
-
-        const data = activeTab === 'toys' ? toys : rentals;
-        
-        if (data.length === 0) {
-            return (
-                <View style={styles.centerContainer}>
-                    <Text style={styles.noItemsText}>
-                        {activeTab === 'toys' 
-                            ? 'Henüz hiç oyuncak eklemediniz.'
-                            : 'Henüz hiç oyuncak kiralamadınız.'}
-                    </Text>
-                </View>
-            );
-        }
-
+    if (loading) {
         return (
-            <FlatList
-                data={data}
-                renderItem={({ item }) => (
-                    <ToyCard
-                        toy={activeTab === 'toys' ? item : item.toy}
-                        onPress={() => navigation.navigate('ToyDetail', { 
-                            toy: activeTab === 'toys' ? item : item.toy
-                        })}
-                        rentalInfo={activeTab === 'rentals' ? {
-                            startDate: item.start_date,
-                            endDate: item.end_date,
-                            status: item.status
-                        } : null}
-                    />
-                )}
-                keyExtractor={item => item.id.toString()}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                    />
-                }
-                contentContainerStyle={styles.listContent}
-            />
+            <View style={styles.centerContainer}>
+                <Text>Yükleniyor...</Text>
+            </View>
         );
-    };
+    }
 
     return (
         <SafeAreaView style={styles.container}>
             {renderHeader()}
-            {renderContent()}
+            <View style={styles.content}>
+                <View style={styles.profileCard}>
+                    <View style={styles.profileHeader}>
+                        <View style={styles.avatarContainer}>
+                            <Icon name="person" size={40} color="#FFF" />
+                        </View>
+                        <View style={styles.profileInfo}>
+                            <Text style={styles.profileName}>{userInfo?.fullName}</Text>
+                            <Text style={styles.profileEmail}>{userInfo?.email}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.statsContainer}>
+                        <View style={styles.statItem}>
+                            <Icon name="star" size={24} color="#FFD700" />
+                            <Text style={styles.statValue}>{userInfo?.points || 0}</Text>
+                            <Text style={styles.statLabel}>Puan</Text>
+                        </View>
+                        <View style={[styles.statItem, styles.statBorder]}>
+                            <Icon name="call" size={24} color="#4CAF50" />
+                            <Text style={styles.statValue}>{userInfo?.phone || '-'}</Text>
+                            <Text style={styles.statLabel}>Telefon</Text>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.actionCards}>
+                    <TouchableOpacity 
+                        style={[styles.actionCard, { backgroundColor: '#FF6B6B' }]}
+                        onPress={() => navigation.navigate('MyRentalsList')}
+                    >
+                        <View style={styles.actionIcon}>
+                            <Icon name="time" size={32} color="#FFF" />
+                        </View>
+                        <View style={styles.actionInfo}>
+                            <Text style={styles.actionTitle}>Kiraladığım Oyuncaklar</Text>
+                            <Text style={styles.actionSubtitle}>Kiralama geçmişinizi görüntüleyin</Text>
+                        </View>
+                        <Icon name="chevron-forward" size={24} color="#FFF" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={[styles.actionCard, { backgroundColor: '#4CAF50' }]}
+                        onPress={() => navigation.navigate('MyToysList')}
+                    >
+                        <View style={styles.actionIcon}>
+                            <Icon name="cube" size={32} color="#FFF" />
+                        </View>
+                        <View style={styles.actionInfo}>
+                            <Text style={styles.actionTitle}>Eklediğim Oyuncaklar</Text>
+                            <Text style={styles.actionSubtitle}>Oyuncaklarınızı yönetin</Text>
+                        </View>
+                        <Icon name="chevron-forward" size={24} color="#FFF" />
+                    </TouchableOpacity>
+                </View>
+            </View>
         </SafeAreaView>
     );
 };
@@ -191,11 +149,121 @@ const UserScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f8f8',
+        backgroundColor: '#F5F5F5',
+    },
+    content: {
+        padding: 16,
+        gap: 16,
+    },
+    profileCard: {
+        backgroundColor: '#FFF',
+        borderRadius: 15,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    profileHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    avatarContainer: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#FF6B6B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    profileInfo: {
+        flex: 1,
+    },
+    profileName: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 4,
+    },
+    profileEmail: {
+        fontSize: 14,
+        color: '#666',
+    },
+    statsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#EEE',
+    },
+    statItem: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    statBorder: {
+        borderLeftWidth: 1,
+        borderLeftColor: '#EEE',
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginTop: 4,
+    },
+    statLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 2,
+    },
+    actionCards: {
+        gap: 12,
+    },
+    actionCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    actionIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    actionInfo: {
+        flex: 1,
+    },
+    actionTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginBottom: 4,
+    },
+    actionSubtitle: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.8)',
     },
     header: {
         backgroundColor: '#FF6B6B',
         paddingTop: 15,
+        paddingBottom: 15,
         elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -207,14 +275,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 15,
-        marginBottom: 15,
-    },
-    userInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    userInfoText: {
-        marginLeft: 10,
     },
     headerButtons: {
         flexDirection: 'row',
@@ -230,42 +290,6 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: 'rgba(255,0,0,0.2)',
     },
-    tabContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 15,
-    },
-    tab: {
-        flex: 1,
-        paddingVertical: 12,
-        alignItems: 'center',
-        borderBottomWidth: 3,
-        borderBottomColor: 'transparent',
-    },
-    activeTab: {
-        borderBottomColor: '#FFF',
-    },
-    tabText: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    activeTabText: {
-        color: '#FFF',
-        fontWeight: 'bold',
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    listContent: {
-        padding: 10,
-    },
-    noItemsText: {
-        fontSize: 16,
-        color: '#666',
-        textAlign: 'center',
-    }
 });
 
 export default UserScreen; 

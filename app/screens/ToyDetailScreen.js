@@ -23,6 +23,9 @@ const ToyDetailScreen = ({ route, navigation }) => {
     const [loading, setLoading] = useState(false);
     const [categoryName, setCategoryName] = useState('');
 
+    const requiredPoints = toy.points * parseInt(rentalPeriod);
+    const hasEnoughPoints = userInfo?.points >= requiredPoints;
+
     useEffect(() => {
         const loadUserInfo = async () => {
             try {
@@ -45,48 +48,42 @@ const ToyDetailScreen = ({ route, navigation }) => {
         }
     }, [toy]);
 
-    const calculateRentalPoints = () => {
-        return toy.points * parseInt(rentalPeriod);
-    };
-
     const handleRent = async () => {
-        if (!toy.is_available) {
-            Alert.alert('Hata', 'Bu oyuncak şu anda kiralanamaz durumda');
-            return;
-        }
-
-        if (!deliveryAddress.trim()) {
-            Alert.alert('Hata', 'Lütfen teslimat adresini giriniz');
-            return;
-        }
-        if (!phone.trim()) {
-            Alert.alert('Hata', 'Lütfen telefon numaranızı giriniz');
-            return;
-        }
-
-        const requiredPoints = calculateRentalPoints();
-        if (userInfo && userInfo.points < requiredPoints) {
-            Alert.alert('Hata', `Yetersiz puan! Kiralama için ${requiredPoints} puan gerekiyor. Mevcut puanınız: ${userInfo.points}`);
-            return;
-        }
-
         try {
-            setLoading(true);
-            const response = await api.rentToy(toy.id, {
-                rentalPeriod,
-                deliveryAddress,
-                phone
-            });
-            
+            if (!rentalPeriod) {
+                Alert.alert('Hata', 'Lütfen kiralama süresi seçin');
+                return;
+            }
+
+            if (!deliveryAddress.trim()) {
+                Alert.alert('Hata', 'Lütfen teslimat adresi girin');
+                return;
+            }
+
+            if (!phone.trim()) {
+                Alert.alert('Hata', 'Lütfen telefon numarası girin');
+                return;
+            }
+
+            const rentalData = {
+                rental_period: rentalPeriod,
+                delivery_address: deliveryAddress,
+                phone: phone
+            };
+
+            await api.rentToy(toy.id, rentalData);
             Alert.alert(
-                'Başarılı',
-                `Oyuncak başarıyla kiralandı!\n\nKiralama Detayları:\nSüre: ${rentalPeriod} ay\nHarcanan Puan: ${response.rentalDetails.pointsSpent}`,
-                [{ text: 'Tamam', onPress: () => navigation.goBack() }]
+                'Başarılı', 
+                'Oyuncak başarıyla kiralandı',
+                [
+                    { 
+                        text: 'Tamam', 
+                        onPress: () => navigation.navigate('Home')
+                    }
+                ]
             );
         } catch (error) {
             Alert.alert('Hata', error.message || 'Kiralama işlemi başarısız oldu');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -114,6 +111,80 @@ const ToyDetailScreen = ({ route, navigation }) => {
             ]
         );
     };
+
+    const renderRentalSection = () => (
+        <View style={styles.rentalSection}>
+            <Text style={styles.sectionTitle}>Kiralama Süresi</Text>
+            <View style={styles.periodSelector}>
+                {['1', '2', '3'].map((period) => (
+                    <TouchableOpacity
+                        key={period}
+                        style={[
+                            styles.periodButton,
+                            rentalPeriod === period && styles.periodButtonActive
+                        ]}
+                        onPress={() => setRentalPeriod(period)}
+                    >
+                        <Text style={[
+                            styles.periodButtonText,
+                            rentalPeriod === period && styles.periodButtonTextActive
+                        ]}>
+                            {period} Ay
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            <View style={styles.pointsContainer}>
+                <Text style={styles.pointsText}>
+                    Gereken Puan: {requiredPoints}
+                </Text>
+                <Text style={styles.availablePoints}>
+                    Mevcut Puanınız: {userInfo?.points || 0}
+                </Text>
+                {!hasEnoughPoints && (
+                    <Text style={styles.insufficientPoints}>
+                        Yetersiz Puan! ({requiredPoints - (userInfo?.points || 0)} puan eksik)
+                    </Text>
+                )}
+            </View>
+
+            <TextInput
+                style={styles.input}
+                placeholder="Teslimat Adresi"
+                value={deliveryAddress}
+                onChangeText={setDeliveryAddress}
+                multiline
+            />
+
+            <TextInput
+                style={styles.input}
+                placeholder="Telefon Numarası"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+            />
+
+            <TouchableOpacity
+                style={[
+                    styles.rentButton,
+                    (!hasEnoughPoints || loading || !toy.is_available) && styles.rentButtonDisabled
+                ]}
+                onPress={handleRent}
+                disabled={!hasEnoughPoints || loading || !toy.is_available}
+            >
+                {loading ? (
+                    <ActivityIndicator color="#FFF" />
+                ) : (
+                    <Text style={styles.rentButtonText}>
+                        {!toy.is_available ? 'Kirada' : 
+                         !hasEnoughPoints ? 'Yetersiz Puan' : 
+                         'Kirala'}
+                    </Text>
+                )}
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
@@ -198,75 +269,7 @@ const ToyDetailScreen = ({ route, navigation }) => {
                                     </Text>
                                 </View>
                             ) : (
-                                <View style={styles.rentalSection}>
-                                    <Text style={styles.sectionTitle}>Kiralama Süresi</Text>
-                                    <View style={styles.periodSelector}>
-                                        {['1', '2', '3'].map((period) => (
-                                            <TouchableOpacity
-                                                key={period}
-                                                style={[
-                                                    styles.periodButton,
-                                                    rentalPeriod === period && styles.periodButtonActive
-                                                ]}
-                                                onPress={() => setRentalPeriod(period)}
-                                            >
-                                                <Text style={[
-                                                    styles.periodButtonText,
-                                                    rentalPeriod === period && styles.periodButtonTextActive
-                                                ]}>
-                                                    {period} Ay
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-
-                                    <View style={styles.pointsContainer}>
-                                        <Text style={styles.pointsText}>
-                                            Gereken Puan: {calculateRentalPoints()}
-                                        </Text>
-                                        {userInfo && userInfo.points < calculateRentalPoints() && (
-                                            <Text style={styles.insufficientPoints}>
-                                                Yetersiz Puan: {userInfo.points} mevcut
-                                            </Text>
-                                        )}
-                                    </View>
-
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Teslimat Adresi"
-                                        value={deliveryAddress}
-                                        onChangeText={setDeliveryAddress}
-                                        multiline
-                                    />
-
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Telefon Numarası"
-                                        value={phone}
-                                        onChangeText={setPhone}
-                                        keyboardType="phone-pad"
-                                    />
-
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.rentButton,
-                                            (loading || !toy.is_available) && styles.rentButtonDisabled
-                                        ]}
-                                        onPress={handleRent}
-                                        disabled={loading || !toy.is_available}
-                                    >
-                                        {loading ? (
-                                            <View style={styles.buttonContent}>
-                                                <ActivityIndicator color="#FFF" />
-                                                <Text style={[styles.rentButtonText, styles.loadingText]}>
-                                                    Kiralama Yapılıyor...
-                                                </Text>
-                                            </View>
-                                        ) : (
-                                            <Text style={styles.rentButtonText}>Kirala</Text>
-                                        )}
-                                    </TouchableOpacity>
-                                </View>
+                                renderRentalSection()
                             )
                         )}
                     </View>
@@ -409,17 +412,26 @@ const styles = StyleSheet.create({
         color: '#FFF',
     },
     pointsContainer: {
-        marginBottom: 15,
+        backgroundColor: '#f8f8f8',
+        padding: 10,
+        borderRadius: 8,
+        marginVertical: 10,
     },
     pointsText: {
-        fontSize: 18,
+        fontSize: 16,
+        color: '#333',
         fontWeight: '600',
-        color: '#FF6B6B',
-        marginBottom: 5,
+    },
+    availablePoints: {
+        fontSize: 14,
+        color: '#4CAF50',
+        marginTop: 5,
     },
     insufficientPoints: {
-        color: '#FF0000',
         fontSize: 14,
+        color: '#FF4444',
+        marginTop: 5,
+        fontWeight: 'bold',
     },
     input: {
         borderWidth: 1,
@@ -437,6 +449,7 @@ const styles = StyleSheet.create({
     },
     rentButtonDisabled: {
         opacity: 0.7,
+        backgroundColor: '#999',
     },
     rentButtonText: {
         color: '#FFF',

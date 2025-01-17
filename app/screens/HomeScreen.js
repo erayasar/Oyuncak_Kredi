@@ -21,6 +21,7 @@ const HomeScreen = ({ navigation, route }) => {
     const [loading, setLoading] = useState(true);
     const [selectedAgeRange, setSelectedAgeRange] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [userInfo, setUserInfo] = useState(null);
 
     // Yaş aralıkları
     const ageRanges = [
@@ -34,8 +35,12 @@ const HomeScreen = ({ navigation, route }) => {
     const loadToys = async () => {
         try {
             setLoading(true);
-            const response = await api.getToys();
-            setToys(response);
+            const [toysResponse, userResponse] = await Promise.all([
+                api.getToys(),
+                api.getUserInfo()
+            ]);
+            setToys(toysResponse);
+            setUserInfo(userResponse);
         } catch (error) {
             console.error('Oyuncaklar yüklenirken hata:', error);
         } finally {
@@ -178,9 +183,10 @@ const HomeScreen = ({ navigation, route }) => {
                 <FlatList
                     data={filteredToys}
                     renderItem={({ item }) => (
-                        <ToyCard
-                            toy={item}
+                        <ToyCard 
+                            toy={item} 
                             onPress={() => navigation.navigate('ToyDetail', { toy: item })}
+                            userPoints={userInfo?.points || 0}
                         />
                     )}
                     keyExtractor={item => item.id.toString()}

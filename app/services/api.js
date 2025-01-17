@@ -41,6 +41,15 @@ axiosInstance.interceptors.response.use(null, async (error) => {
     return axiosInstance(config);
 });
 
+// Auth header'ı almak için yardımcı fonksiyon
+const getAuthHeader = async () => {
+    const token = await AsyncStorage.getItem('userToken');
+    return {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+    };
+};
+
 // Request interceptor - her istekte token ekle
 axiosInstance.interceptors.request.use(
     async (config) => {
@@ -168,11 +177,16 @@ const api = {
 
     rentToy: async (toyId, rentalData) => {
         try {
-            const response = await axiosInstance.post(`/toys/rent/${toyId}`, rentalData);
+            console.log('Kiralama isteği gönderiliyor:', { toyId, ...rentalData });
+            const response = await axiosInstance.post(`/rentals/${toyId}/rent`, rentalData);
+            console.log('Kiralama yanıtı:', response.data);
             return response.data;
         } catch (error) {
-            console.error('Kiralama hatası:', error.response?.data || error);
-            throw new Error(error.response?.data?.message || 'Kiralama işlemi başarısız oldu');
+            console.error('Kiralama hatası:', error.response?.data || error.message);
+            if (error.response?.data?.message) {
+                throw new Error(error.response.data.message);
+            }
+            throw new Error('Kiralama işlemi başarısız oldu');
         }
     },
 
@@ -228,9 +242,10 @@ const api = {
     getMyRentals: async () => {
         try {
             const response = await axiosInstance.get('/rentals/my');
+            console.log('Kiralama yanıtı:', response.data);
             return response.data;
         } catch (error) {
-            console.error('Kiralama bilgileri getirme hatası:', error);
+            console.error('Kiralama bilgileri alınırken hata:', error);
             throw error;
         }
     },
@@ -328,6 +343,36 @@ const api = {
             return data;
         } catch (error) {
             console.error('Oyuncak güncelleme hatası:', error);
+            throw error;
+        }
+    },
+
+    changePassword: async (data) => {
+        try {
+            console.log('Şifre değiştirme isteği gönderiliyor:', {
+                ...data,
+                currentPassword: '***',
+                newPassword: '***'
+            });
+            
+            const response = await axiosInstance.post('/users/profile/change-password', data);
+            console.log('Şifre değiştirme yanıtı:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Şifre değiştirme hatası:', error.response?.data || error.message);
+            if (error.response?.data?.message) {
+                throw new Error(error.response.data.message);
+            }
+            throw new Error('Şifre değiştirme işlemi başarısız oldu');
+        }
+    },
+
+    updateProfile: async (data) => {
+        try {
+            const response = await axiosInstance.put('/users/profile', data);
+            return response.data;
+        } catch (error) {
+            console.error('Profil güncelleme hatası:', error);
             throw error;
         }
     }
